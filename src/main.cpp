@@ -7,6 +7,7 @@
 #include <string>
 #include <thread>
 #include <iostream>
+#include <charconv>
 
 #include <tgbot/tgbot.h>
 
@@ -61,10 +62,21 @@ void run_mqtt_monitor(
                 boost::mqtt5::error_code receive_ec, std::string topic, std::string payload, boost::mqtt5::publish_props
             ) {
                 if (ord[0] == 0) { 
+                    uint64_t value = 0;
                     std::cout << "[ALARM] Не на зв'язку" << std::endl;
                     auto users = *cm.get<std::vector<std::string>>("tg.users");
-                    for(auto it = users.begin(); it != users.end(); ++it) {
-                        bot.getApi().sendMessage(std::stoull(*it), "[ALARM] Не на зв'язку");
+                    try {
+                        for(auto it = users.begin(); it != users.end(); ++it) {
+                            auto result = std::from_chars(it->data(), it->data() + it->size(), value);
+                            if (result.ec != std::errc()) {
+                                continue;
+                            }
+                            bot.getApi().sendMessage(value, "[ALARM] Не на зв'язку");
+                        }
+                    } catch (const TgBot::TgException& e) {
+                        std::cerr << "[TG ERROR] Не вдалося відправити повідомлення: " << e.what() << std::endl;
+                    } catch (const std::exception& e) {
+                        std::cerr << "[UNKNOWN ERROR] " << e.what() << std::endl;
                     }
                 }
                 else {
