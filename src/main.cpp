@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <exception>
 #include <string>
+#include <thread>
+#include <iostream>
 
 #include <tgbot/tgbot.h>
 
@@ -14,14 +16,73 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/experimental/parallel_group.hpp>
+
+#include "config.hpp"
 
 using namespace std;
 using namespace TgBot;
 
-//#include "dotenv.hpp"
-//#include <fstream>
+boost::asio::io_context ioc;
 
-#include "config.hpp"
+void run_mqtt_monitor(
+    Settings::ConfigManager& cm,
+    Bot& bot
+) {
+    auto c = std::make_shared<boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket>>(ioc);
+    auto timer = std::make_shared<boost::asio::steady_timer >(ioc);
+
+    c->brokers(*cm.get<std::string>("mqtt.broker"), *cm.get<unsigned short>("mqtt.port"))
+        .credentials(
+            *cm.get<std::string>("mqtt.client_id"),
+            *cm.get<std::string>("mqtt.client_name"),
+            *cm.get<std::string>("mqtt.pwd")
+        ).async_run(boost::asio::detached);
+
+    c->async_subscribe(
+        { *cm.get<std::string>("mqtt.topic") }, boost::mqtt5::subscribe_props {},
+            [](boost::mqtt5::error_code ec, std::vector<boost::mqtt5::reason_code>, boost::mqtt5::suback_props) {
+                if (!ec) std::cout << "Successfully subscribed via MQTT!" << std::endl;
+        }
+    );
+
+    std::function<void()> start_monitoring;
+    start_monitoring = [&]() {
+        timer->expires_after(std::chrono::seconds(10));
+
+        boost::asio::experimental::make_parallel_group(
+            timer->async_wait(boost::asio::deferred),
+            c->async_receive(boost::asio::deferred)
+        ).async_wait(
+            boost::asio::experimental::wait_for_one(),
+            [&](
+                std::array<std::size_t, 2> ord,  
+                boost::mqtt5::error_code /*timer_ec*/,
+                boost::mqtt5::error_code receive_ec, std::string topic, std::string payload, boost::mqtt5::publish_props
+            ) {
+                if (ord[0] == 0) { 
+                    std::cout << "[ALARM] Не на зв'язку" << std::endl;
+                    auto users = *cm.get<std::vector<std::string>>("tg.users");
+                    for(auto it = users.begin(); it != users.end(); ++it) {
+                        bot.getApi().sendMessage(std::stoull(*it), "[ALARM] Не на зв'язку");
+                    }
+                }
+                else {
+                    if (!receive_ec) {
+                        std::cout << "[OK] " << topic << "Повідомлення отримано: " << payload << std::endl;
+                    } else {
+                        std::cout << "[ERROR] Помилка отримання: " << receive_ec.message() << std::endl;
+                    }
+                }
+
+                start_monitoring();
+            }
+        );
+    };
+    
+    start_monitoring();
+    ioc.run();
+}
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -29,28 +90,21 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    Settings::ConfigManager cm = std::string(argv[1]);
-
-    Bot bot(*cm.get<std::string>("tg.token"));
-    bot.getEvents().onCommand("start", [&bot, &cm](Message::Ptr message) {
-        bot.getApi().sendMessage(message->chat->id, "Hi!");
-        cm.addUser(std::to_string(message->from->id));
-    });
-    bot.getEvents().onAnyMessage([&bot](Message::Ptr message) {
-        printf("User @%s wrote %s\n", message->from->username.c_str(),  message->text.c_str());
-        if (StringTools::startsWith(message->text, "/start")) {
-            return;
-        }
-        bot.getApi().sendMessage(message->chat->id, "Your message is: " + message->text);
-    });
-
     signal(SIGINT, [](int s) {
         printf("\nSIGINT got\n");
+        ioc.stop();
         exit(0);
     });
 
     try {
-        printf("Bot username: %s\n", bot.getApi().getMe()->username.c_str());
+        Settings::ConfigManager cm = std::string(argv[1]);
+        Bot bot(*cm.get<std::string>("tg.token"));
+
+        std::thread mqtt_thread([&cm, &bot] {
+            run_mqtt_monitor(cm, bot);
+        });
+
+        printf("Bot username: @%s\n", bot.getApi().getMe()->username.c_str());
         bot.getApi().deleteWebhook();
 
         TgLongPoll longPoll(bot);
@@ -58,74 +112,12 @@ int main(int argc, char* argv[]) {
             printf("Long poll started\n");
             longPoll.start();
         }
+
+        if (mqtt_thread.joinable()) mqtt_thread.join();
+
     } catch (exception& e) {
         printf("error: %s\n", e.what());
     }
 
     return 0;
 }
-
-/*
-int main() {
-    Bot bot(getenv("token"));
-    bot.getEvents().onCommand("start", [&bot](Message::Ptr message) {
-        bot.getApi().sendMessage(message->chat->id, "Hi!");
-    });
-    bot.getEvents().onAnyMessage([&bot](Message::Ptr message) {
-        printf("User wrote %s\n", message->text.c_str());
-        if (StringTools::startsWith(message->text, "/start")) {
-            return;
-        }
-        bot.getApi().sendMessage(message->chat->id, "Your message is: " + message->text);
-    });
-
-    signal(SIGINT, [](int s) {
-        printf("SIGINT got\n");
-        exit(0);
-    });
-
-    try {
-        printf("Bot username: %s\n", bot.getApi().getMe()->username.c_str());
-        bot.getApi().deleteWebhook();
-
-        TgLongPoll longPoll(bot);
-        while (true) {
-            printf("Long poll started\n");
-            longPoll.start();
-        }
-    } catch (exception& e) {
-        printf("error: %s\n", e.what());
-    }
-
-    return 0;
-}
-
-int main() {
-    std::ifstream envFile(".env");
-    load_env(envFile);
-
-	boost::asio::io_context ioc;
-
-	boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket> c(ioc);
-
-    char    *mqtt_port  = getenv("mqtt-port"),
-            *mqtt_client_name = getenv("mqtt-client-name"),
-            *mqtt_pwd = getenv("mqtt-pwd");
-	c.brokers(getenv("mqtt-broker"), !(mqtt_port) ? atoi(mqtt_port) : 1883)
-		.credentials(getenv("client-id"),
-                    !mqtt_client_name ? mqtt_client_name : "",
-                    !mqtt_pwd ? mqtt_pwd : ""            
-        ).async_run(boost::asio::detached);
-
-	c.async_publish<boost::mqtt5::qos_e::at_most_once>(
-		getenv("mqtt-topic"), "Hello world!",
-		boost::mqtt5::retain_e::no, boost::mqtt5::publish_props {},
-		[&c](boost::mqtt5::error_code ec) {
-			std::cout << ec.message() << std::endl;
-			c.async_disconnect(boost::asio::detached);
-		}
-	);
-	
-	ioc.run();
-}
-*/

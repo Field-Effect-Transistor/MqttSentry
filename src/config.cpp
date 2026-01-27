@@ -49,6 +49,9 @@ namespace Settings {
         if (j.contains("pwd")) {
             j.at("pwd").get_to(m.pwd);
         }
+        if (j.contains("topic")) {
+            j.at("topic").get_to(m.topic);
+        }
     }
 
     bool ConfigManager::_load() {
@@ -204,6 +207,10 @@ namespace Settings {
         } else if (key == "mqtt.pwd") {
             if constexpr (std::is_same_v<U, decltype(_mqtt.pwd)>) {
                 return _mqtt.pwd;
+            }
+        } else if (key == "mqtt.topic") {
+            if constexpr (std::is_same_v<U, decltype(_mqtt.topic)>) {
+                return _mqtt.topic;
             }
         }
 
