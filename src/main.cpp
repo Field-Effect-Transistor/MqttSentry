@@ -31,6 +31,38 @@ int main(int argc, char* argv[]) {
 
     Settings::ConfigManager cm = std::string(argv[1]);
 
+    Bot bot(*cm.get<std::string>("tg.token"));
+    bot.getEvents().onCommand("start", [&bot, &cm](Message::Ptr message) {
+        bot.getApi().sendMessage(message->chat->id, "Hi!");
+        cm.addUser(std::to_string(message->from->id));
+    });
+    bot.getEvents().onAnyMessage([&bot](Message::Ptr message) {
+        printf("User @%s wrote %s\n", message->from->username.c_str(),  message->text.c_str());
+        if (StringTools::startsWith(message->text, "/start")) {
+            return;
+        }
+        bot.getApi().sendMessage(message->chat->id, "Your message is: " + message->text);
+    });
+
+    signal(SIGINT, [](int s) {
+        printf("\nSIGINT got\n");
+        exit(0);
+    });
+
+    try {
+        printf("Bot username: %s\n", bot.getApi().getMe()->username.c_str());
+        bot.getApi().deleteWebhook();
+
+        TgLongPoll longPoll(bot);
+        while (true) {
+            printf("Long poll started\n");
+            longPoll.start();
+        }
+    } catch (exception& e) {
+        printf("error: %s\n", e.what());
+    }
+
+    return 0;
 }
 
 /*

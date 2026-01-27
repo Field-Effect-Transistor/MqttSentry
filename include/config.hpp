@@ -4,8 +4,10 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include <optional>
 
 #include <nlohmann/json.hpp>
+
 
 namespace Settings {
     struct tg {
@@ -44,5 +46,11 @@ namespace Settings {
 
         template<typename U>
         bool update(const std::string& key, const U& value);
+        template<typename U>
+        std::optional<U> get(const std::string& key);
+
+        bool addUser(const std::string& u);
+        bool removeUser(const std::string& u);
+        bool userExist(const std::string& u);
     };
 }
