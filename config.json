@@ -1,0 +1,14 @@
+{
+    "mqtt": {
+        "broker": "localhost",
+        "client_id": "cpp_client",
+        "client_name": "",
+        "port": 1883,
+        "pwd": "",
+        "topic": "topic"
+    },
+    "tg": {
+        "token": "",
+        "users": []
+    }
+}
