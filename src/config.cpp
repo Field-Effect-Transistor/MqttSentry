@@ -1,6 +1,8 @@
 //  src/config.cpp
 #include "config.hpp"
 
+#include <fstream>
+
 using json = nlohmann::json;
 
 namespace Settings {
@@ -54,6 +56,22 @@ namespace Settings {
         }
     }
 
+    void to_json(nlohmann::json& j, const logic& l) {
+        j = json({
+            { "timeout", l.timeout},
+            { "code", l.code}
+        });
+    }
+
+    void from_json(const nlohmann::json& j, logic& l) {
+        if (j.contains("timeout")) {
+            j.at("timeout").get_to(l.timeout);
+        }
+        if (j.contains("code")) {
+            j.at("code").get_to(l.code);
+        }
+    }
+
     bool ConfigManager::_load() {
         if (_loaded) {
             return true;
@@ -78,6 +96,9 @@ namespace Settings {
             if (data.contains("mqtt")) {
                 _mqtt = data.at("mqtt").get<mqtt>();
             }
+            if (data.contains("logic")) {
+                _logic = data.at("logic"). get<logic>();
+            }
 
         } catch (const json::parse_error& e) {
             std::cerr << "[ERROR] Error parsing config file: " << e.what() << std::endl;
@@ -98,6 +119,7 @@ namespace Settings {
         json data;
         data["tg"] = _tg;
         data["mqtt"] = _mqtt;
+        data["logic"] = _logic;
 
         configFile << data.dump(4);
         
@@ -112,6 +134,7 @@ namespace Settings {
 
     template<typename U>
     bool ConfigManager::update(const std::string& key, const U& value) {
+        std::lock_guard<std::mutex> lock(_mutex);
         bool updated = false;
 
         //  TELEGRAM
@@ -158,6 +181,19 @@ namespace Settings {
                 _mqtt.topic = value;
                 updated = true;
             }
+        } else
+
+        //  LOGIC
+        if (key == "logic.timeout") {
+            if constexpr (std::is_same_v<U, decltype(_logic.timeout)>) {
+                _logic.timeout = value;
+                updated = true;
+            }
+        } else if (key == "logc.code") {
+            if constexpr (std::is_same_v<U, decltype(_logic.code)>) {
+                _logic.code = value;
+                updated = true;
+            }
         }
 
         if (updated) {
@@ -172,10 +208,13 @@ namespace Settings {
     template bool ConfigManager::update<const char*>(const std::string&, const char* const&);
     template bool ConfigManager::update<int>(const std::string&, const int&);
     template bool ConfigManager::update<unsigned short>(const std::string&, const unsigned short&);
+    template bool ConfigManager::update<time_t>(const std::string&, const time_t&);
     template bool ConfigManager::update<std::vector<std::string>>(const std::string&, const std::vector<std::string>&);
+    template bool ConfigManager::update<std::unordered_map<unsigned int, std::string>>(const std::string&, const std::unordered_map<unsigned int, std::string>&);
 
     template<typename U>
     std::optional<U> ConfigManager::get(const std::string& key) {
+        std::lock_guard<std::mutex> lock(_mutex);
         //  TELEGRAM
         if (key == "tg.token") {
             if constexpr (std::is_same_v<U, decltype(_tg.token)>) {
@@ -212,14 +251,26 @@ namespace Settings {
             if constexpr (std::is_same_v<U, decltype(_mqtt.topic)>) {
                 return _mqtt.topic;
             }
+        } else
+
+        //  LOGIC
+        if (key == "logic.timeout") {
+            if constexpr (std::is_same_v<U, decltype(_logic.timeout)>) {
+                return _logic.timeout;
+            }
+        } else if (key == "logic.code") {
+            if constexpr (std::is_same_v<U, decltype(_logic.code)>) {
+                return _logic.code;
+            }
         }
 
         return std::nullopt;
     }
     template std::optional<std::string> ConfigManager::get<std::string>(const std::string&);
+    template std::optional<time_t> ConfigManager::get<time_t>(const std::string&);
     template std::optional<unsigned short> ConfigManager::get<unsigned short>(const std::string&);
     template std::optional<std::vector<std::string>> ConfigManager::get<std::vector<std::string>>(const std::string&);
-
+    template std::optional<std::unordered_map<unsigned int, std::string>> ConfigManager::get<std::unordered_map<unsigned int, std::string>>(const std::string&);
 
     bool ConfigManager::userExist(const std::string& u) {
         auto v = *get<std::vector<std::string>>("tg.users");

@@ -8,6 +8,7 @@
 #include <thread>
 #include <iostream>
 #include <charconv>
+#include <sstream>
 
 #include <tgbot/tgbot.h>
 
@@ -32,6 +33,8 @@ void run_mqtt_monitor(
 ) {
     auto c = std::make_shared<boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket>>(ioc);
     auto timer = std::make_shared<boost::asio::steady_timer >(ioc);
+    auto timeout = *cm.get<time_t>("logic.timeout");
+    auto code = *cm.get<std::unordered_map<unsigned int, std::string>>("logic.code");
 
     c->brokers(*cm.get<std::string>("mqtt.broker"), *cm.get<unsigned short>("mqtt.port"))
         .credentials(
@@ -49,7 +52,7 @@ void run_mqtt_monitor(
 
     std::function<void()> start_monitoring;
     start_monitoring = [&]() {
-        timer->expires_after(std::chrono::seconds(10));
+        timer->expires_after(std::chrono::seconds(timeout));
 
         boost::asio::experimental::make_parallel_group(
             timer->async_wait(boost::asio::deferred),
@@ -62,8 +65,8 @@ void run_mqtt_monitor(
                 boost::mqtt5::error_code receive_ec, std::string topic, std::string payload, boost::mqtt5::publish_props
             ) {
                 if (ord[0] == 0) { 
-                    uint64_t value = 0;
                     std::cout << "[ALARM] Не на зв'язку" << std::endl;
+                    uint64_t value = 0;
                     auto users = *cm.get<std::vector<std::string>>("tg.users");
                     try {
                         for(auto it = users.begin(); it != users.end(); ++it) {
@@ -81,7 +84,41 @@ void run_mqtt_monitor(
                 }
                 else {
                     if (!receive_ec) {
-                        std::cout << "[OK] " << topic << "Повідомлення отримано: " << payload << std::endl;
+                        //std::cout << "[OK] " << topic << "Повідомлення отримано: " << payload << std::endl;
+                        
+                        try {
+                            std::stringstream ms;
+                            ms << "[OK] " << topic << ": " << code.at(std::stoul(payload));
+                            auto m = ms.str();
+                            uint64_t value = 0;
+                            auto users = *cm.get<std::vector<std::string>>("tg.users");
+                            for(auto it = users.begin(); it != users.end(); ++it) {
+                                auto result = std::from_chars(it->data(), it->data() + it->size(), value);
+                                if (result.ec != std::errc()) {
+                                    continue;
+                                }
+                                bot.getApi().sendMessage(value, m);
+                            }
+                            std::cout << m;
+                        } catch (const std::out_of_range& e){
+                            std::stringstream ms;
+                            ms << "[WARN] Неописаний код помилки на " << topic << ": " << payload; 
+                            auto m = ms.str();
+                            uint64_t value = 0;
+                            auto users = *cm.get<std::vector<std::string>>("tg.users");
+                            for(auto it = users.begin(); it != users.end(); ++it) {
+                                auto result = std::from_chars(it->data(), it->data() + it->size(), value);
+                                if (result.ec != std::errc()) {
+                                    continue;
+                                }
+                                bot.getApi().sendMessage(value, m);
+                            }
+                            std::cout << m;
+                        } catch (const std::exception& e) {
+                            std::cerr << "[ERROR] Невідома помилка MQTT " << e.what() << " | "
+                                        << topic << ":" << payload << std::endl;
+                        }
+                        
                     } else {
                         std::cout << "[ERROR] Помилка отримання: " << receive_ec.message() << std::endl;
                     }
@@ -114,6 +151,13 @@ int main(int argc, char* argv[]) {
 
         std::thread mqtt_thread([&cm, &bot] {
             run_mqtt_monitor(cm, bot);
+        });
+
+        bot.getEvents().onAnyMessage([&bot](TgBot::Message::Ptr message) {
+            if (StringTools::startsWith(message->text, "/start")) {
+                std::cout << "[WARN] NEW USER CANDIDATE: " << message->from->id << std::endl;
+                return;
+            }
         });
 
         printf("Bot username: @%s\n", bot.getApi().getMe()->username.c_str());

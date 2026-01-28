@@ -2,9 +2,10 @@
 
 #include <iostream>
 #include <vector>
-#include <fstream>
 #include <string>
 #include <optional>
+#include <unordered_map>
+#include <mutex>
 
 #include <nlohmann/json.hpp>
 
@@ -30,16 +31,29 @@ namespace Settings {
     void to_json(nlohmann::json& j, const mqtt& m);
     void from_json(const nlohmann::json& j, mqtt& m);
 
+    struct logic {
+        time_t timeout = 30;
+        std::unordered_map<unsigned int, std::string> code{
+            {0,     "FINE"},
+            {100,   "WE COOKED"}
+        };
+    };
+    void to_json(nlohmann::json& j, const logic& l);
+    void from_json(const nlohmann::json& j, logic& l);
+
     class ConfigManager {
     private:
         bool _loaded = false;
         tg   _tg;
         mqtt _mqtt;
+        logic _logic;
         std::string _configFileName;
 
-        bool _load();
-        bool _write();
+        mutable std::mutex _mutex;
 
+        inline bool _load();   //  without mutex
+        inline bool _write();  //  without mutex
+        
     public:
         ConfigManager(const std::string& configFileName);
         ~ConfigManager() {};
