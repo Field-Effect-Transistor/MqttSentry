@@ -37,7 +37,7 @@ void run_mqtt_monitor(
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         std::cerr << "[ERROR] config filename wasnt specified\n";
-        exit(1);
+        return 1;
     }
 
     signal(SIGINT, [](int s) {
@@ -51,7 +51,12 @@ int main(int argc, char* argv[]) {
         Bot bot(*cm.get<std::string>("tg.token"));
 
         std::thread mqtt_thread([&cm, &bot] {
-            run_mqtt_monitor(cm, bot);
+            try{
+                run_mqtt_monitor(cm, bot);
+            } catch(...) {
+                std::cerr<< "\n[ERROR] crash mqtt_thread\n";
+            }
+            
         });
 
         bot.getEvents().onAnyMessage([&bot](TgBot::Message::Ptr message) {
@@ -86,13 +91,14 @@ void run_mqtt_monitor(
     Bot& bot
 ) {
     auto c = std::make_shared<boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket>>(ioc);
+
     std::vector<std::shared_ptr<TopicWatchdog>> watchdogs;
 
     auto s_topics = *cm.get<std::vector<std::string>>("mqtt.topic");
     std::vector<boost::mqtt5::subscribe_topic> topics;
     topics.reserve(s_topics.size());
     for (const auto& t : s_topics) {
-        auto watchdog = std::make_shared<TopicWatchdog>(ioc, t, cm, bot);
+        auto watchdog = std::make_shared<TopicWatchdog>(ioc, split(t, '/').at(1), cm, bot);
         watchdogs.push_back(watchdog);
         watchdog->start_timer();
 
@@ -104,7 +110,10 @@ void run_mqtt_monitor(
             *cm.get<std::string>("mqtt.client_id"),
             *cm.get<std::string>("mqtt.client_name"),
             *cm.get<std::string>("mqtt.pwd")
-        ).async_run(boost::asio::detached);    
+        ).async_run([](boost::mqtt5::error_code ec) {
+         
+            std::cout << "[MQTT Client] Stopped. Reason: " << ec.message() << std::endl;
+        });    
     
     c->async_subscribe(
             topics, boost::mqtt5::subscribe_props {},
@@ -112,6 +121,7 @@ void run_mqtt_monitor(
                 if (!ec) std::cout << "Successfully subscribed via MQTT!" << std::endl;
         }
     );
+    
 
     std::function<void()> loop;
     loop = [&c, watchdogs, &loop, &cm, &bot]{
@@ -123,6 +133,7 @@ void run_mqtt_monitor(
                 boost::mqtt5::publish_props
             ) {
                 if (!ec) {
+                    std::cout << payload << std::endl;
                     auto topics = split(full_topic, '/');
                     if (topics.size() != 3) {
                         std::cerr << "[WARN] " + full_topic + " should look like NordFrost/MACHINE_ID/topic\n";
@@ -130,27 +141,31 @@ void run_mqtt_monitor(
                         auto& id = topics.at(1);
                         auto& topic = topics.at(2);
 
-                        for (auto& it : watchdogs) {
-                            auto watchdog_id = split(it->getTopic(),'/').at(1);
-                            if (watchdog_id == id) {
-                                it->pet();
+                        size_t i = 0;
+                        while (i < watchdogs.size()) {
+                            if (watchdogs.at(i)->get_hmi_id() == id)
                                 break;
-                            }
+                            ++i;
                         }
+                        auto& watchdog = watchdogs.at(i);
+                        watchdog->pet();
                         
-                        if (topic == "alarm_kod") {
+                        //! dont forget to change alatm_kod
+                        if (topic == "alatm_kod") {
                             unsigned int kod;
-
+                            std::string ts;
                             try {
                                 nlohmann::json data = nlohmann::json::parse(payload);
-                                std::string ts = data["ts"];
+                                ts = data["ts"];
                                 //unsigned int kod = data["alarm_kod"];
                                 std::vector<unsigned int> kod_v = data["alarm_kod"];
                                 kod = kod_v.at(0);
 
                                 if (kod) {
+                                    watchdog->_is_alarm = true;
                                     std::stringstream ss;
-                                    ss << "[ALARM] on " << id << ' ' << cm.get<std::unordered_map<unsigned int,std::string>>("logic.code")->at(kod) << std::endl;
+                                    ss  << "[ALARM] on " << id << ' ' << cm.get<std::unordered_map<unsigned int,std::string>>("logic.code")->at(kod) << std::endl 
+                                        << "timestamp: " << ts << std::endl;
                                     std::string s = ss.str();
                                     
                                     auto users = *cm.get<std::vector<std::string>>("tg.users");
@@ -158,11 +173,24 @@ void run_mqtt_monitor(
                                         bot.getApi().sendMessage(std::stoul(*it), s);
                                     }            
                                     std::cout << s;
+                                } else if (watchdog->_is_alarm) {
+                                    watchdog->_is_alarm = false;
+                                    auto users = *cm.get<std::vector<std::string>>("tg.users");
+                                    for (auto it = users.begin(); it != users.end(); ++it) {
+                                        bot.getApi().sendMessage(
+                                            std::stoul(*it),
+                                            "[ALARM] Release on " + id + "\n timestamp: " + ts + '\n' 
+                                        );
+                                    }
+
                                 }
                             } catch (const std::out_of_range& e) {
                                 auto users = *cm.get<std::vector<std::string>>("tg.users");
                                 for (auto it = users.begin(); it != users.end(); ++it) {
-                                    bot.getApi().sendMessage(std::stoul(*it), "[ALARM] on " + id + " with unknown code: " + std::to_string(kod));
+                                    bot.getApi().sendMessage(
+                                        std::stoul(*it),
+                                        "[ALARM] on " + id + " with unknown code: " + std::to_string(kod) + "\n timestamp: " + ts + '\n' 
+                                    );
                                 }
                             } catch (const std::exception& e) {
                                 std::cerr << "[ERROR] on " << full_topic << ":" << e.what() << std::endl;
