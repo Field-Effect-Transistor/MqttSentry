@@ -1,4 +1,5 @@
 //  include/config.hpp
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -26,13 +27,14 @@ namespace Settings {
         std::string client_name = "";
         std::string pwd = "";
 
-        std::string topic = "topic";
+        std::vector<std::string> topic{"topic"};
     };
     void to_json(nlohmann::json& j, const mqtt& m);
     void from_json(const nlohmann::json& j, mqtt& m);
 
     struct logic {
-        time_t timeout = 30;
+        time_t timeout = 60;
+        unsigned int timeout_limit = 3;
         std::unordered_map<unsigned int, std::string> code{
             {0,     "FINE"},
             {100,   "WE COOKED"}

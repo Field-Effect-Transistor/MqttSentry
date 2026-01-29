@@ -22,7 +22,7 @@ else()
     message(STATUS "Boost::system not available, using header-only")
 endif()
 
-add_executable(tgBot src/main.cpp src/config.cpp)
+add_executable(tgBot src/main.cpp src/config.cpp src/topicWatchdog.cpp)
 
 target_compile_options(tgBot PRIVATE -Wall)
 target_compile_definitions(tgBot PRIVATE HAVE_CURL)

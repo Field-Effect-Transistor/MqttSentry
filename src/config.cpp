@@ -59,6 +59,7 @@ namespace Settings {
     void to_json(nlohmann::json& j, const logic& l) {
         j = json({
             { "timeout", l.timeout},
+            { "timeout_limit", l.timeout_limit},
             { "code", l.code}
         });
     }
@@ -69,6 +70,9 @@ namespace Settings {
         }
         if (j.contains("code")) {
             j.at("code").get_to(l.code);
+        }
+        if (j.contains("timeout_limit")) {
+            j.at("timeout_limit").get_to(l.timeout_limit);
         }
     }
 
@@ -189,9 +193,14 @@ namespace Settings {
                 _logic.timeout = value;
                 updated = true;
             }
-        } else if (key == "logc.code") {
+        } else if (key == "logic.code") {
             if constexpr (std::is_same_v<U, decltype(_logic.code)>) {
                 _logic.code = value;
+                updated = true;
+            }
+        } else if (key == "logic.timeout_limit") {
+            if constexpr (std::is_same_v<U, decltype(_logic.timeout_limit)>) {
+                _logic.timeout_limit = value;
                 updated = true;
             }
         }
@@ -262,13 +271,19 @@ namespace Settings {
             if constexpr (std::is_same_v<U, decltype(_logic.code)>) {
                 return _logic.code;
             }
+        } else if (key == "logic.timeout_limit") {
+            if constexpr (std::is_same_v<U, decltype(_logic.timeout_limit)>) {
+                return _logic.timeout_limit;
+            }
         }
 
+        throw std::runtime_error("config::get error with key: " + key + "\n");
         return std::nullopt;
     }
     template std::optional<std::string> ConfigManager::get<std::string>(const std::string&);
     template std::optional<time_t> ConfigManager::get<time_t>(const std::string&);
     template std::optional<unsigned short> ConfigManager::get<unsigned short>(const std::string&);
+    template std::optional<unsigned int> ConfigManager::get<unsigned int>(const std::string&);
     template std::optional<std::vector<std::string>> ConfigManager::get<std::vector<std::string>>(const std::string&);
     template std::optional<std::unordered_map<unsigned int, std::string>> ConfigManager::get<std::unordered_map<unsigned int, std::string>>(const std::string&);
 

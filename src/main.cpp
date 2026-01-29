@@ -21,117 +21,18 @@
 #include <boost/asio/experimental/parallel_group.hpp>
 
 #include "config.hpp"
+#include "topicWatchdog.hpp"
 
 using namespace std;
 using namespace TgBot;
 
 boost::asio::io_context ioc;
 
+std::vector<std::string> split(const std::string& s, char delimiter);
 void run_mqtt_monitor(
     Settings::ConfigManager& cm,
     Bot& bot
-) {
-    auto c = std::make_shared<boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket>>(ioc);
-    auto timer = std::make_shared<boost::asio::steady_timer >(ioc);
-    auto timeout = *cm.get<time_t>("logic.timeout");
-    auto code = *cm.get<std::unordered_map<unsigned int, std::string>>("logic.code");
-
-    c->brokers(*cm.get<std::string>("mqtt.broker"), *cm.get<unsigned short>("mqtt.port"))
-        .credentials(
-            *cm.get<std::string>("mqtt.client_id"),
-            *cm.get<std::string>("mqtt.client_name"),
-            *cm.get<std::string>("mqtt.pwd")
-        ).async_run(boost::asio::detached);
-
-    c->async_subscribe(
-        { *cm.get<std::string>("mqtt.topic") }, boost::mqtt5::subscribe_props {},
-            [](boost::mqtt5::error_code ec, std::vector<boost::mqtt5::reason_code>, boost::mqtt5::suback_props) {
-                if (!ec) std::cout << "Successfully subscribed via MQTT!" << std::endl;
-        }
-    );
-
-    std::function<void()> start_monitoring;
-    start_monitoring = [&]() {
-        timer->expires_after(std::chrono::seconds(timeout));
-
-        boost::asio::experimental::make_parallel_group(
-            timer->async_wait(boost::asio::deferred),
-            c->async_receive(boost::asio::deferred)
-        ).async_wait(
-            boost::asio::experimental::wait_for_one(),
-            [&](
-                std::array<std::size_t, 2> ord,  
-                boost::mqtt5::error_code /*timer_ec*/,
-                boost::mqtt5::error_code receive_ec, std::string topic, std::string payload, boost::mqtt5::publish_props
-            ) {
-                if (ord[0] == 0) { 
-                    std::cout << "[ALARM] Не на зв'язку" << std::endl;
-                    uint64_t value = 0;
-                    auto users = *cm.get<std::vector<std::string>>("tg.users");
-                    try {
-                        for(auto it = users.begin(); it != users.end(); ++it) {
-                            auto result = std::from_chars(it->data(), it->data() + it->size(), value);
-                            if (result.ec != std::errc()) {
-                                continue;
-                            }
-                            bot.getApi().sendMessage(value, "[ALARM] Не на зв'язку");
-                        }
-                    } catch (const TgBot::TgException& e) {
-                        std::cerr << "[TG ERROR] Не вдалося відправити повідомлення: " << e.what() << std::endl;
-                    } catch (const std::exception& e) {
-                        std::cerr << "[UNKNOWN ERROR] " << e.what() << std::endl;
-                    }
-                }
-                else {
-                    if (!receive_ec) {
-                        //std::cout << "[OK] " << topic << "Повідомлення отримано: " << payload << std::endl;
-                        
-                        try {
-                            std::stringstream ms;
-                            ms << "[OK] " << topic << ": " << code.at(std::stoul(payload));
-                            auto m = ms.str();
-                            uint64_t value = 0;
-                            auto users = *cm.get<std::vector<std::string>>("tg.users");
-                            for(auto it = users.begin(); it != users.end(); ++it) {
-                                auto result = std::from_chars(it->data(), it->data() + it->size(), value);
-                                if (result.ec != std::errc()) {
-                                    continue;
-                                }
-                                bot.getApi().sendMessage(value, m);
-                            }
-                            std::cout << m;
-                        } catch (const std::out_of_range& e){
-                            std::stringstream ms;
-                            ms << "[WARN] Неописаний код помилки на " << topic << ": " << payload; 
-                            auto m = ms.str();
-                            uint64_t value = 0;
-                            auto users = *cm.get<std::vector<std::string>>("tg.users");
-                            for(auto it = users.begin(); it != users.end(); ++it) {
-                                auto result = std::from_chars(it->data(), it->data() + it->size(), value);
-                                if (result.ec != std::errc()) {
-                                    continue;
-                                }
-                                bot.getApi().sendMessage(value, m);
-                            }
-                            std::cout << m;
-                        } catch (const std::exception& e) {
-                            std::cerr << "[ERROR] Невідома помилка MQTT " << e.what() << " | "
-                                        << topic << ":" << payload << std::endl;
-                        }
-                        
-                    } else {
-                        std::cout << "[ERROR] Помилка отримання: " << receive_ec.message() << std::endl;
-                    }
-                }
-
-                start_monitoring();
-            }
-        );
-    };
-    
-    start_monitoring();
-    ioc.run();
-}
+);
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -175,5 +76,117 @@ int main(int argc, char* argv[]) {
         printf("error: %s\n", e.what());
     }
 
+    std::cout << "App finished\n";
+
     return 0;
+}
+
+void run_mqtt_monitor(
+    Settings::ConfigManager& cm,
+    Bot& bot
+) {
+    auto c = std::make_shared<boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket>>(ioc);
+    std::vector<std::shared_ptr<TopicWatchdog>> watchdogs;
+
+    auto s_topics = *cm.get<std::vector<std::string>>("mqtt.topic");
+    std::vector<boost::mqtt5::subscribe_topic> topics;
+    topics.reserve(s_topics.size());
+    for (const auto& t : s_topics) {
+        auto watchdog = std::make_shared<TopicWatchdog>(ioc, t, cm, bot);
+        watchdogs.push_back(watchdog);
+        watchdog->start_timer();
+
+        topics.push_back({t});
+    }
+
+    c->brokers(*cm.get<std::string>("mqtt.broker"), *cm.get<unsigned short>("mqtt.port"))
+        .credentials(
+            *cm.get<std::string>("mqtt.client_id"),
+            *cm.get<std::string>("mqtt.client_name"),
+            *cm.get<std::string>("mqtt.pwd")
+        ).async_run(boost::asio::detached);    
+    
+    c->async_subscribe(
+            topics, boost::mqtt5::subscribe_props {},
+            [](boost::mqtt5::error_code ec, std::vector<boost::mqtt5::reason_code>, boost::mqtt5::suback_props) {
+                if (!ec) std::cout << "Successfully subscribed via MQTT!" << std::endl;
+        }
+    );
+
+    std::function<void()> loop;
+    loop = [&c, watchdogs, &loop, &cm, &bot]{
+        c->async_receive(
+            [c, watchdogs, &loop, &cm, &bot](
+                boost::mqtt5::error_code ec, 
+                std::string full_topic, 
+                std::string payload, 
+                boost::mqtt5::publish_props
+            ) {
+                if (!ec) {
+                    auto topics = split(full_topic, '/');
+                    if (topics.size() != 3) {
+                        std::cerr << "[WARN] " + full_topic + " should look like NordFrost/MACHINE_ID/topic\n";
+                    } else {
+                        auto& id = topics.at(1);
+                        auto& topic = topics.at(2);
+
+                        for (auto& it : watchdogs) {
+                            auto watchdog_id = split(it->getTopic(),'/').at(1);
+                            if (watchdog_id == id) {
+                                it->pet();
+                                break;
+                            }
+                        }
+                        
+                        if (topic == "alarm_kod") {
+                            unsigned int kod;
+
+                            try {
+                                nlohmann::json data = nlohmann::json::parse(payload);
+                                std::string ts = data["ts"];
+                                //unsigned int kod = data["alarm_kod"];
+                                std::vector<unsigned int> kod_v = data["alarm_kod"];
+                                kod = kod_v.at(0);
+
+                                if (kod) {
+                                    std::stringstream ss;
+                                    ss << "[ALARM] on " << id << ' ' << cm.get<std::unordered_map<unsigned int,std::string>>("logic.code")->at(kod) << std::endl;
+                                    std::string s = ss.str();
+                                    
+                                    auto users = *cm.get<std::vector<std::string>>("tg.users");
+                                    for (auto it = users.begin(); it != users.end(); ++it) {
+                                        bot.getApi().sendMessage(std::stoul(*it), s);
+                                    }            
+                                    std::cout << s;
+                                }
+                            } catch (const std::out_of_range& e) {
+                                auto users = *cm.get<std::vector<std::string>>("tg.users");
+                                for (auto it = users.begin(); it != users.end(); ++it) {
+                                    bot.getApi().sendMessage(std::stoul(*it), "[ALARM] on " + id + " with unknown code: " + std::to_string(kod));
+                                }
+                            } catch (const std::exception& e) {
+                                std::cerr << "[ERROR] on " << full_topic << ":" << e.what() << std::endl;
+                            }
+                        }
+                    }
+
+                } 
+                
+                loop();
+            }
+        );
+    };
+
+    loop();
+    ioc.run();
+}
+
+std::vector<std::string> split(const std::string& s, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    return tokens;
 }
