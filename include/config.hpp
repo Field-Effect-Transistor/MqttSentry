@@ -60,13 +60,24 @@ namespace Settings {
         ConfigManager(const std::string& configFileName);
         ~ConfigManager() {};
 
+        //  deprecated setters n getters
         template<typename U>
         bool update(const std::string& key, const U& value);
         template<typename U>
         std::optional<U> get(const std::string& key);
 
+        //  actual one
+        tg      getTgConfig()   const { std::lock_guard<std::mutex> lock(_mutex);   return _tg; };
+        mqtt    getMqttConfig() const { std::lock_guard<std::mutex> lock(_mutex);   return _mqtt; };
+        logic   getLogicConfig() const { std::lock_guard<std::mutex> lock(_mutex); return _logic; };
+
+        bool updateTgConfig(const tg& t);
+        bool updateMqttConfig(const mqtt& m);
+        bool updateLogicConfig(const logic& l);
+
+        //  User management methodes
         bool addUser(const std::string& u);
         bool removeUser(const std::string& u);
         bool userExist(const std::string& u);
     };
-}
+}// namespace Settings

@@ -329,5 +329,25 @@ namespace Settings {
             return update("tg.users", temp);
         }
     }
-}
+
+
+    bool ConfigManager::updateTgConfig(const tg& t) {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _tg = t;
+        return _write();
+    }
+
+    bool ConfigManager::updateMqttConfig(const mqtt& m) {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _mqtt = m;
+        return _write();
+    }
+
+    bool ConfigManager::updateLogicConfig(const logic& l) {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _logic = l;
+        return _write();
+    }
+
+}   //  namespace Settings
 
