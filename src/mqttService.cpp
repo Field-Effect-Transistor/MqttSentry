@@ -128,7 +128,7 @@ void MqttService::recieveLoop() {
                 }
 
             } catch (const std::out_of_range& e) {
-                _onAlert({id, "Unknown error with code " + kod, ts});
+                _onAlert({id, std::string("Unknown error with code ") + std::to_string(kod), ts});
             } catch (const std::exception& e) {
                 std::cerr << "[MqttService] RecieveLoop Error: " << e.what() << std::endl;
             }
