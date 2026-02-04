@@ -5,6 +5,7 @@
 
 #include <boost/mqtt5/mqtt_client.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/mqtt5/logger.hpp>
 
 #include "config.hpp"
 #include "types.hpp"
@@ -12,7 +13,9 @@
 
 class MqttService {
     public:
+
     using OnAlertCallback = std::function<void(const AlertEvents)>;
+    using MqttClient = boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket, std::monostate, boost::mqtt5::logger>;
     
     MqttService(
         Settings::ConfigManager& cm,
@@ -28,9 +31,11 @@ class MqttService {
     private:
     Settings::ConfigManager& _cm;
     boost::asio::io_context& _ioc;
-    std::shared_ptr<boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket>> _client;
+    std::shared_ptr<MqttClient> _client;
     std::vector<std::shared_ptr<TopicWatchdog>> _watchdogs;
     OnAlertCallback _onAlert;
+
+    std::shared_ptr<boost::asio::steady_timer> _retryTimer;
 
     //void onMessageReceived(const std::string& topic, const std::string& payload);
     void recieveLoop();

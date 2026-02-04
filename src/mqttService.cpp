@@ -18,54 +18,58 @@ MqttService::MqttService(
     boost::asio::io_context& ioc
 ): _cm(cm), _ioc(ioc) {
     //  creating mqtt client
-    _client = std::make_shared<boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket>>(ioc);
+    _client = std::make_shared<MqttClient>(MqttClient(ioc, {}, boost::mqtt5::logger(boost::mqtt5::log_level::debug)));  
+    _retryTimer = std::make_shared<boost::asio::steady_timer>(ioc);
 }
 
 void MqttService::start() {
-    //  prepere topics to subs
-    auto s_topics = *_cm.get<std::vector<std::string>>("mqtt.topic");
-    std::vector<boost::mqtt5::subscribe_topic> topics;
-    topics.reserve(s_topics.size());
-    _watchdogs.clear();
-    for (const auto& t : s_topics) {
-        //  creating watchdogs + givin them callback function so they notify on machine dis- / connections
-        auto hmi_id = split(t, '/').at(1);
-        auto watchdog = std::make_shared<TopicWatchdog>(_ioc, hmi_id, _cm, [this, hmi_id](const WatchdogEvents event){
-            if (event == WatchdogEvents::Online) {
-                _onAlert({hmi_id, "Machine is back online", "NOW"});
-            } else {
-                _onAlert({hmi_id, "Machine is offline!!!", "NOW"});
-            }
-        });
-        _watchdogs.push_back(watchdog);
-        watchdog->start_timer();
+    try {
+        //  prepere topics to subs
+        auto s_topics = *_cm.get<std::vector<std::string>>("mqtt.topic");
+        std::vector<boost::mqtt5::subscribe_topic> topics;
+        topics.reserve(s_topics.size());
+        _watchdogs.clear();
+        for (const auto& t : s_topics) {
+            //  creating watchdogs + givin them callback function so they notify on machine dis- / connections
+            auto hmi_id = split(t, '/').at(1);
+            auto watchdog = std::make_shared<TopicWatchdog>(_ioc, hmi_id, _cm, [this, hmi_id](const WatchdogEvents event){
+                if (event == WatchdogEvents::Online) {
+                    _onAlert({hmi_id, "Machine is back online", "NOW"});
+                } else {
+                    _onAlert({hmi_id, "Machine is offline!!!", "NOW"});
+                }
+            });
+            _watchdogs.push_back(watchdog);
+            watchdog->start_timer();
 
-        topics.push_back({t});  //  preparing topics for subs
-    }
-
-    //  settin up client
-    auto mqttConfig = _cm.getMqttConfig();
-    _client->brokers(mqttConfig.broker, mqttConfig.port)
-        .credentials(
-            mqttConfig.client_id,
-            mqttConfig.client_name,
-            mqttConfig.pwd
-        );
-
-    _client->async_run([](boost::mqtt5::error_code ec) {
-        std::cerr << "[MqttService] Stopped. Reason: " << ec.message() << std::endl;
-    }); 
-    
-    _client->async_subscribe(
-        topics, boost::mqtt5::subscribe_props {},
-        [](boost::mqtt5::error_code ec, std::vector<boost::mqtt5::reason_code>, boost::mqtt5::suback_props) {
-            if (!ec)
-                std::cout << "[MqttService] Successfully subscribed via MQTT!" << std::endl;
-            else
-                std::cerr << "[MqttService] Subscribing error: " << ec.message() << std::endl;
+            topics.push_back({t});  //  preparing topics for subs
         }
-    );
 
+        //  settin up client
+        auto mqttConfig = _cm.getMqttConfig();
+        _client->brokers(mqttConfig.broker, mqttConfig.port)
+            .credentials(
+                mqttConfig.client_id,
+                mqttConfig.client_name,
+                mqttConfig.pwd
+            );
+
+        _client->async_run([](boost::mqtt5::error_code ec) {
+            std::cerr << "[MqttService] Stopped. Reason: " << ec.message() << std::endl;
+        }); 
+        
+        _client->async_subscribe(
+            topics, boost::mqtt5::subscribe_props {},
+            [](boost::mqtt5::error_code ec, std::vector<boost::mqtt5::reason_code>, boost::mqtt5::suback_props) {
+                if (!ec)
+                    std::cout << "[MqttService] Successfully subscribed via MQTT!" << std::endl;
+                else
+                    std::cerr << "[MqttService] Subscribing error: " << ec.message() << std::endl;
+            }
+        );
+    } catch (const std::exception& e) {
+        std::cerr << "[MqttService] start() Error: " << e.what() << std::endl << std::flush;
+    }
     //  start recieve loop
     recieveLoop();
     _ioc.run();
@@ -82,8 +86,12 @@ void MqttService::recieveLoop() {
         if (ec == boost::asio::error::operation_aborted) return;
 
         if(ec) {
-            std::cerr << "[MqttService] RecieveLoop error: " << ec.message() << std::endl;
-            this->recieveLoop();
+            std::cerr << "[MqttService] Error: " << ec.message() << ". Retrying in 5s...\n";
+            
+            _retryTimer->expires_after(std::chrono::seconds(5));
+            _retryTimer->async_wait([this](const boost::system::error_code& timer_ec){
+                if (!timer_ec) this->recieveLoop();
+            });
             return;
         }
 

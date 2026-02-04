@@ -4,9 +4,9 @@
 Application::Application(const std::string& configFilePath)
     :_cm(configFilePath),
     _tg(_cm),
+    _mqtt(_cm, _ioc),
     _signals(_ioc),
-    _mqtt(_cm, _ioc)
-
+    _running(true)
 {
     _signals.add(SIGINT);
     _signals.add(SIGTERM);
@@ -36,13 +36,16 @@ void Application::run() {
 
     //  starting mqtt
     _mqtt.setOnAlert([this](const AlertEvents alert){
+        std::cout << "[ThreadSafeQueue] New value pushed " << alert.machine_id
+            << '|' << alert.message
+            << '|' << alert.timestamp << std::endl << std::flush;
         _queue.push(alert);
     });
     _mqtt.start();
 
-    std::cout << "[App] App running...\n";
+    std::cout << "[App] App running...\n" << std::flush;
     _ioc.run();
-    std::cout << "[App] Main Loop finished\n";
+    std::cout << "[App] Main Loop finished\n" << std::flush;
 }
 
 void Application::stop() {
@@ -68,11 +71,23 @@ void Application::stop() {
 }
 
 void Application::_workerLoop() {
+    std::cout << "[Worker] Thread started!" << std::endl << std::flush;
+    
     while(_running) {
         try {
-            _tg.sendAlert(_queue.pop());
+            auto alert = _queue.pop(); 
+            
+            if (alert.machine_id.empty() && alert.message.empty()) break;
+
+            std::cout << "[Worker] Processing alert from " << alert.machine_id << "..." << std::endl;
+            
+            _tg.sendAlert(alert);
+            
+            std::cout << "[Worker] Alert sent successfully!" << std::endl << std::flush;
+
         } catch (const std::exception& e) {
-            std::cerr << "[App] Failed to sent alert: " << e.what() << std::endl;
+            std::cerr << "[Worker] Failed to send alert: " << e.what() << std::endl << std::flush;
         }
     }
+    std::cout << "[Worker] Thread finished." << std::endl << std::flush;
 }

@@ -4,6 +4,7 @@
 #include <iostream>
 
 int main(int argc, char* argv[]) {
+
     if (argc != 2) {
         std::cerr << "Usage: ./tgBot <config_json>\n";
         return 1;
@@ -21,4 +22,5 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Bye!\n";
     return 0;
+
 }

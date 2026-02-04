@@ -1,13 +1,18 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.10)
 project(tgBot)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(Boost_USE_STATIC_LIBS ON)
+set(OPENSSL_USE_STATIC_LIBS TRUE)
+set(CURL_USE_STATIC_LIBS TRUE)
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(CURL REQUIRED)
-find_package(nlohmann_json 3.12.0 REQUIRED)
 
 if(POLICY CMP0167)
    cmake_policy(SET CMP0167 OLD)
@@ -26,14 +31,20 @@ add_executable(tgBot src/main.cpp src/config.cpp src/topicWatchdog.cpp src/mqttS
 
 target_compile_options(tgBot PRIVATE -Wall)
 target_compile_definitions(tgBot PRIVATE HAVE_CURL)
-target_include_directories(tgBot PRIVATE /usr/local/include include)
+target_include_directories(tgBot PRIVATE include)
+
+add_subdirectory(libs/tgbot-cpp)
+add_subdirectory(libs/json)
+add_subdirectory(libs/mqtt5)
+
 target_link_libraries(tgBot 
     PRIVATE 
-        /usr/local/lib/libTgBot.a 
+        boost_mqtt5
+        TgBot
         Threads::Threads
         OpenSSL::SSL 
         OpenSSL::Crypto
         CURL::libcurl
         #BOOST_SYSTEM_TARGET
-        nlohmann_json::nlohmann_json
+        nlohmann_json
 )
