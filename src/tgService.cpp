@@ -41,15 +41,27 @@ void TgService::runLongPoll() {
 }
 
 void TgService::sendAlert(const AlertEvents& alert) {
+    /*
     std::string toSend = "[MACHINE]: " + alert.machine_id
      + "\n[MESSAGE]: " + alert.message
      + "\n[TIMESTAMP]:" + alert.timestamp + '\n';
+     */
+    std::string toSend = alert.machine_id + " :\n";
+    switch(alert.state) {
+        case AlertEvents::State::online: toSend += "📶 "; break;
+        case AlertEvents::State::offline: toSend += "🚫 "; break;
+        case AlertEvents::State::error: toSend += "🚨 "; break;
+    }
+    toSend += alert.message + "\n";
+    if (alert.timestamp != "NOW") {
+        toSend += "🗓️ " + alert.timestamp;
+    }
     std::cout << "[TgBot] Alert sent: " << toSend;
 
     try {
         auto users_s = _cm.getTgConfig().users;
         for(const auto& user : users_s) {
-            _bot.getApi().sendMessage(static_cast<int64_t>(std::stoull(user)), toSend);
+            _bot.getApi().sendMessage(static_cast<int64_t>(std::stoull(user)), toSend, nullptr, nullptr, nullptr, "HTML");
         }
     } catch (const std::exception& e) {
         std::cerr << "[TgService] Failed to send Alert: " << e.what() << std::endl;

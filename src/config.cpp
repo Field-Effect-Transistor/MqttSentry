@@ -60,7 +60,9 @@ namespace Settings {
         j = json({
             { "timeout", l.timeout},
             { "timeout_limit", l.timeout_limit},
-            { "code", l.code}
+            { "disabled_codes", l.disabled_codes},
+            { "code", l.code},
+            { "machines", l.machines}
         });
     }
 
@@ -71,8 +73,14 @@ namespace Settings {
         if (j.contains("code")) {
             j.at("code").get_to(l.code);
         }
+        if (j.contains("disabled_codes")) {
+            j.at("disabled_codes").get_to(l.disabled_codes);
+        }
         if (j.contains("timeout_limit")) {
             j.at("timeout_limit").get_to(l.timeout_limit);
+        }
+        if (j.contains("machines")) {
+            j.at("machines").get_to(l.machines);
         }
     }
 

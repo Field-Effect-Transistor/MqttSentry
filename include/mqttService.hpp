@@ -38,7 +38,8 @@ class MqttService {
     std::shared_ptr<boost::asio::steady_timer> _retryTimer;
 
     //void onMessageReceived(const std::string& topic, const std::string& payload);
-    void recieveLoop();
+    void _recieveLoop();
+    std::string _resolveHmiName(const std::string& hmi_id);
     //std::optional<AlertEvents> parser(const std::vector<std::string>& message);
     //void subscribeToTopics();
 };

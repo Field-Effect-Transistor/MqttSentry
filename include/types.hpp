@@ -9,6 +9,11 @@
 #include <optional>
 
 struct AlertEvents {
+    enum class State {
+        online,
+        offline,
+        error
+    } state;
     std::string machine_id;
     std::string message;
     std::string timestamp;

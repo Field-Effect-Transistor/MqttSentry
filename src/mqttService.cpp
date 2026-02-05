@@ -2,6 +2,7 @@
 #include "mqttService.hpp"
 
 #include <stdexcept>
+#include <algorithm>
 
 inline std::vector<std::string> split(const std::string& s, char delimiter) {
     std::vector<std::string> tokens;
@@ -34,9 +35,9 @@ void MqttService::start() {
             auto hmi_id = split(t, '/').at(1);
             auto watchdog = std::make_shared<TopicWatchdog>(_ioc, hmi_id, _cm, [this, hmi_id](const WatchdogEvents event){
                 if (event == WatchdogEvents::Online) {
-                    _onAlert({hmi_id, "Machine is back online", "NOW"});
+                    _onAlert({AlertEvents::State::online, _resolveHmiName(hmi_id), "<b>Зв'язок:</b> знову на зв'язку", "NOW"});
                 } else {
-                    _onAlert({hmi_id, "Machine is offline!!!", "NOW"});
+                    _onAlert({AlertEvents::State::offline, _resolveHmiName(hmi_id), "<b>Зв'язок:</b> не на зв'язку", "NOW"});
                 }
             });
             _watchdogs.push_back(watchdog);
@@ -71,11 +72,11 @@ void MqttService::start() {
         std::cerr << "[MqttService] start() Error: " << e.what() << std::endl << std::flush;
     }
     //  start recieve loop
-    recieveLoop();
+    _recieveLoop();
     _ioc.run();
 }
 
-void MqttService::recieveLoop() {
+void MqttService::_recieveLoop() {
     _client->async_receive(
         [this](
         boost::mqtt5::error_code ec, 
@@ -90,7 +91,7 @@ void MqttService::recieveLoop() {
             
             _retryTimer->expires_after(std::chrono::seconds(5));
             _retryTimer->async_wait([this](const boost::system::error_code& timer_ec){
-                if (!timer_ec) this->recieveLoop();
+                if (!timer_ec) this->_recieveLoop();
             });
             return;
         }
@@ -114,13 +115,13 @@ void MqttService::recieveLoop() {
             }
             if (i == size) {
                 std::cerr << "[MqttService] RecieveLoop warning: from unregistered " << full_topic << " topic recieved\n";
-                recieveLoop();
+                _recieveLoop();
                 return;
             }
         }
-        watchdog->pet();
-
-        if(theme == "alatm_kod") {
+        if (theme == "state") {
+            watchdog->pet();
+        } else if(theme == "alarm_kod") {
             unsigned int kod;
             std::string ts = "unknown";
 
@@ -130,19 +131,21 @@ void MqttService::recieveLoop() {
                 std::vector<unsigned int> kod_v = data["alarm_kod"];
                 kod = kod_v.at(0);
 
-                if (kod) {
+                auto logic = _cm.getLogicConfig();
+                auto& disabled_codes = logic.disabled_codes;
+                if (std::find(disabled_codes.begin(), disabled_codes.end(), kod) == disabled_codes.end()) {
                     auto codes = _cm.getLogicConfig().code;
-                    _onAlert({id, codes.at(kod), ts});
+                    _onAlert({AlertEvents::State::error, _resolveHmiName(id), codes.at(kod), ts});
                 }
 
             } catch (const std::out_of_range& e) {
-                _onAlert({id, std::string("Unknown error with code ") + std::to_string(kod), ts});
+                _onAlert({AlertEvents::State::error, _resolveHmiName(id), std::string("Unknown error with code ") + std::to_string(kod), ts});
             } catch (const std::exception& e) {
                 std::cerr << "[MqttService] RecieveLoop Error: " << e.what() << std::endl;
             }
         }
         
-        recieveLoop();
+        _recieveLoop();
     });
 }
 
@@ -159,5 +162,17 @@ void MqttService::stop() {
                 }
             }       
         );
+    }
+}
+
+std::string MqttService::_resolveHmiName(const std::string& hmi_id) {
+    try {
+        auto machines = _cm.getLogicConfig().machines;
+        return machines.at(hmi_id);
+    } catch (const std::out_of_range& e) {
+        return  hmi_id;
+    } catch (const std::exception& e) {
+        std::cerr << "[MqttService] Exception in _resolveHmiName " << e.what() << std::endl;
+        return hmi_id;
     }
 }

@@ -35,9 +35,13 @@ namespace Settings {
     struct logic {
         time_t timeout = 60;
         unsigned int timeout_limit = 3;
+        std::vector<unsigned int> disabled_codes{0};
         std::unordered_map<unsigned int, std::string> code{
             {0,     "FINE"},
             {100,   "WE COOKED"}
+        };
+        std::unordered_map<std::string, std::string> machines{
+            {"B83DF67CE1D5", "Testing Machine"}
         };
     };
     void to_json(nlohmann::json& j, const logic& l);
