@@ -24,7 +24,7 @@ void TopicWatchdog::pet() {
 }
 
 void TopicWatchdog::start_timer() {
-    _timer->expires_after(std::chrono::seconds(*_cm.get<time_t>("logic.timeout")));
+    _timer->expires_after(std::chrono::seconds(_cm.getLogicConfig().timeout));
 
     auto self = shared_from_this();
     _timer->async_wait([self](const boost::system::error_code& ec) {
@@ -39,8 +39,9 @@ void TopicWatchdog::start_timer() {
 }
 
 void TopicWatchdog::on_timeout() {
-    std::cout << "TopicWatchdog::on_timeout() "<< _timeouts << '/' << *_cm.get<unsigned int>("logic.timeout_limit") << std::endl;
-    if (_timeouts++ < *_cm.get<unsigned int>("logic.timeout_limit")) {
+    auto timeout_limit = _cm.getLogicConfig().timeout_limit;
+    std::cout << "TopicWatchdog::on_timeout() "<< _timeouts << '/' << timeout_limit << std::endl;
+    if (_timeouts++ < timeout_limit) {
         _callback(WatchdogEvents::Offline);
         start_timer();
     }

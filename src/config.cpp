@@ -22,7 +22,7 @@ namespace Settings {
     //  program should NOT run without token
     void from_json(const json& j, tg& t) {
         t.token = j["token"];
-        t.users = j.value("users", std::vector<std::string>{});
+        t.users = j.value("users", std::vector<uint64_t>{});
     }
 
     void to_json(json& j, const mqtt& m) {
@@ -144,6 +144,7 @@ namespace Settings {
         return true;
     }
 
+/*
     template<typename U>
     bool ConfigManager::update(const std::string& key, const U& value) {
         std::lock_guard<std::mutex> lock(_mutex);
@@ -294,9 +295,10 @@ namespace Settings {
     template std::optional<unsigned int> ConfigManager::get<unsigned int>(const std::string&);
     template std::optional<std::vector<std::string>> ConfigManager::get<std::vector<std::string>>(const std::string&);
     template std::optional<std::unordered_map<unsigned int, std::string>> ConfigManager::get<std::unordered_map<unsigned int, std::string>>(const std::string&);
+*/
 
-    bool ConfigManager::userExist(const std::string& u) {
-        auto v = *get<std::vector<std::string>>("tg.users");
+    bool ConfigManager::userExist(const uint64_t u) {
+        auto v = getTgConfig().users;
         for (auto it = v.begin(); it != v.end(); ++it) {
             if (*it == u) {
                 return true;
@@ -305,8 +307,9 @@ namespace Settings {
         return false;
     }
 
-    bool ConfigManager::addUser(const std::string& u) {
-        auto v = *get<std::vector<std::string>>("tg.users");
+    bool ConfigManager::addUser(const uint64_t u) {
+        auto tg = getTgConfig();
+        auto& v = tg.users;
         bool exist = false;
         for (auto it = v.begin(); it != v.end(); ++it) {
             if(*it == u) {
@@ -317,24 +320,25 @@ namespace Settings {
 
         if(!exist) {
             v.push_back(u);
-            return update("tg.users", v);
+            return updateTgConfig(tg);
         }
 
         return true;
     }
 
-    bool ConfigManager::removeUser(const std::string& u) {
-        auto v = *get<std::vector<std::string>>("tg.users");
+    bool ConfigManager::removeUser(const uint64_t u) {
+        auto tg = getTgConfig();
+        auto& v = tg.users;
         if (v.empty()) {
             return true;
         } else {
-            std::vector<std::string> temp;
+            std::vector<u_int64_t> temp;
             for(auto it =  v.begin(); it != v.end(); ++it) {
                 if (*it != u) {
                     temp.push_back(*it);
                 }
             }
-            return update("tg.users", temp);
+            return updateTgConfig(tg);
         }
     }
 

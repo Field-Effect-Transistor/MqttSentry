@@ -26,7 +26,7 @@ MqttService::MqttService(
 void MqttService::start() {
     try {
         //  prepere topics to subs
-        auto s_topics = *_cm.get<std::vector<std::string>>("mqtt.topic");
+        auto s_topics = _cm.getMqttConfig().topic;
         std::vector<boost::mqtt5::subscribe_topic> topics;
         topics.reserve(s_topics.size());
         _watchdogs.clear();
@@ -134,7 +134,7 @@ void MqttService::_recieveLoop() {
                 auto logic = _cm.getLogicConfig();
                 auto& disabled_codes = logic.disabled_codes;
                 if (std::find(disabled_codes.begin(), disabled_codes.end(), kod) == disabled_codes.end()) {
-                    auto codes = _cm.getLogicConfig().code;
+                    auto codes = logic.code;
                     _onAlert({AlertEvents::State::error, _resolveHmiName(id), codes.at(kod), ts});
                 }
 

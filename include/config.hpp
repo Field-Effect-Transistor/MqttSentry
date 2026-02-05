@@ -7,6 +7,7 @@
 #include <optional>
 #include <unordered_map>
 #include <mutex>
+#include <cstdint>
 
 #include <nlohmann/json.hpp>
 
@@ -14,7 +15,7 @@
 namespace Settings {
     struct tg {
         std::string token;
-        std::vector<std::string> users;
+        std::vector<uint64_t> users;
     };
     void to_json(nlohmann::json& j, const tg& t);
     void from_json(const nlohmann::json& j, tg& t);
@@ -65,10 +66,10 @@ namespace Settings {
         ~ConfigManager() {};
 
         //  deprecated setters n getters
-        template<typename U>
-        bool update(const std::string& key, const U& value);
-        template<typename U>
-        std::optional<U> get(const std::string& key);
+        //template<typename U>
+        //bool update(const std::string& key, const U& value);
+        //template<typename U>
+        //std::optional<U> get(const std::string& key);
 
         //  actual one
         tg      getTgConfig()   const { std::lock_guard<std::mutex> lock(_mutex);   return _tg; };
@@ -80,8 +81,8 @@ namespace Settings {
         bool updateLogicConfig(const logic& l);
 
         //  User management methodes
-        bool addUser(const std::string& u);
-        bool removeUser(const std::string& u);
-        bool userExist(const std::string& u);
+        bool addUser(const uint64_t u);
+        bool removeUser(const uint64_t u);
+        bool userExist(const uint64_t u);
     };
 }// namespace Settings
