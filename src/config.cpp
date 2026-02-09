@@ -14,7 +14,8 @@ namespace Settings {
     void to_json(json& j, const tg& t) {
         j = json{
             {"token", t.token},
-            {"users", t.users}
+            {"users", t.users},
+            {"admins", t.admins}
         };
     }
 
@@ -23,6 +24,7 @@ namespace Settings {
     void from_json(const json& j, tg& t) {
         t.token = j["token"];
         t.users = j.value("users", std::vector<uint64_t>{});
+        t.admins = j.value("admins", std::vector<uint64_t>{});
     }
 
     void to_json(json& j, const mqtt& m) {
@@ -332,12 +334,13 @@ namespace Settings {
         if (v.empty()) {
             return true;
         } else {
-            std::vector<u_int64_t> temp;
+            std::vector<uint64_t> temp;
             for(auto it =  v.begin(); it != v.end(); ++it) {
                 if (*it != u) {
                     temp.push_back(*it);
                 }
             }
+            v = temp;
             return updateTgConfig(tg);
         }
     }

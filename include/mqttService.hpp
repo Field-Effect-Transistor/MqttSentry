@@ -14,6 +14,7 @@
 class MqttService {
     public:
 
+    using OnMSCallback = std::function<void(const std::string, const MachineState)>;
     using OnAlertCallback = std::function<void(const AlertEvents)>;
     using MqttClient = boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket, std::monostate, boost::mqtt5::logger>;
     
@@ -27,6 +28,7 @@ class MqttService {
     void stop();
 
     void setOnAlert(OnAlertCallback onAlert) { _onAlert = onAlert; };
+    void setOnMSCallback(OnMSCallback onMS) { _onMS = onMS; };
 
     private:
     Settings::ConfigManager& _cm;
@@ -34,13 +36,11 @@ class MqttService {
     std::shared_ptr<MqttClient> _client;
     std::vector<std::shared_ptr<TopicWatchdog>> _watchdogs;
     OnAlertCallback _onAlert;
+    OnMSCallback _onMS;
 
     std::shared_ptr<boost::asio::steady_timer> _retryTimer;
 
-    //void onMessageReceived(const std::string& topic, const std::string& payload);
     void _recieveLoop();
     std::string _resolveHmiName(const std::string& hmi_id);
-    //std::optional<AlertEvents> parser(const std::vector<std::string>& message);
-    //void subscribeToTopics();
 };
 

@@ -96,6 +96,8 @@ void MqttService::_recieveLoop() {
             return;
         }
 
+        std::cout << full_topic << std::endl;
+
         //  extracting id and theme (state, alarm_kod, out, etc.) from topic
         auto topics = split(full_topic, '/');
         if (topics.size() != 3) {
@@ -112,6 +114,7 @@ void MqttService::_recieveLoop() {
                     watchdog = _watchdogs.at(i);
                     break;
                 }
+                ++i;
             }
             if (i == size) {
                 std::cerr << "[MqttService] RecieveLoop warning: from unregistered " << full_topic << " topic recieved\n";
@@ -121,8 +124,17 @@ void MqttService::_recieveLoop() {
         }
         if (theme == "state") {
             watchdog->pet();
+            try {
+                nlohmann::json data = nlohmann::json::parse(payload);
+                MachineState ms;
+                ms.state = data["step_pos"][0];
+                ms.ts = data["ts"];
+                _onMS(id, ms);
+            } catch (const std::exception& e) {
+                std::cerr << "[MqttService] failed to parse state of " << _resolveHmiName(id) << " with payload " << payload << std::endl ;
+            }
         } else if(theme == "alarm_kod") {
-            unsigned int kod;
+            unsigned int kod = 0;
             std::string ts = "unknown";
 
             try {

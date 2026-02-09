@@ -4,20 +4,45 @@
 #include <stdexcept>
 #include <thread>
 
+#include "adminController.hpp"
+
+inline std::vector<std::string> split(const std::string& s, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+
 TgService::TgService(Settings::ConfigManager& cm):
     _cm(cm),
-    _bot(cm.getTgConfig().token)
+    _bot(cm.getTgConfig().token),
+    _admin(_cm, _bot)
 {
-    //  subscribe for message event
-    _bot.getEvents().onCommand("start", [this](TgBot::Message::Ptr message) {
-        try {
-            std::cerr << "[TgService] New User Candidate: " << message->from->id << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "[TgService] Exception in TgService lambda onAnyMessage: " << e.what() << std::endl;
-        }
-        
+    _bot.getEvents().onCommand("stateof",[this](TgBot::Message::Ptr message) {
+        auto uid = message->from->id;
+       try {
+            if(!_cm.userExist(uid)) {
+                _bot.getApi().sendMessage(uid, "Ти хто?");    
+                return;
+            }
+            std::string mid;
+            MachineState ms;
+            auto text_to = split(message->text, ' ');
+            if (text_to.size() != 2) {
+                _bot.getApi().sendMessage(uid, "⚠️ Використання: <code>/stateof MACHINE_ID</code>",0, 0, 0, "HTML");
+                return;
+            }
+            mid = text_to[1];
+            _getMachineState(mid,ms);
+            _bot.getApi().sendMessage(uid, std::string("step_pos: ") + std::to_string(ms.state) + "\n ts: " + ms.ts );
+       } catch (const std::exception& e) {
+        std::cerr << "[TgService] err: " << e.what();
+       } 
     });
-
+    _admin.registerCommands();
     printf("Bot username: @%s\n", _bot.getApi().getMe()->username.c_str());
     _bot.getApi().deleteWebhook();
 }

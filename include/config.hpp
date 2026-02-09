@@ -16,6 +16,7 @@ namespace Settings {
     struct tg {
         std::string token;
         std::vector<uint64_t> users;
+        std::vector<uint64_t> admins;
     };
     void to_json(nlohmann::json& j, const tg& t);
     void from_json(const nlohmann::json& j, tg& t);
@@ -71,7 +72,6 @@ namespace Settings {
         //template<typename U>
         //std::optional<U> get(const std::string& key);
 
-        //  actual one
         tg      getTgConfig()   const { std::lock_guard<std::mutex> lock(_mutex);   return _tg; };
         mqtt    getMqttConfig() const { std::lock_guard<std::mutex> lock(_mutex);   return _mqtt; };
         logic   getLogicConfig() const { std::lock_guard<std::mutex> lock(_mutex); return _logic; };

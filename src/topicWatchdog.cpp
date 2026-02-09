@@ -12,6 +12,7 @@ TopicWatchdog::TopicWatchdog(
     WatchdogCallback callback
 ) : _hmi_id(hmi_id),  _cm(cm), _timeouts(0), _callback(callback) {
     _timer = std::make_shared<boost::asio::steady_timer>(ioc);
+    std::cout << "[TopicWatchdog:" << hmi_id << "] created\n";
 }
 
 void TopicWatchdog::pet() {

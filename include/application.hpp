@@ -14,7 +14,8 @@ class Application {
     Settings::ConfigManager _cm;
     
     //  thread save queue
-    ThreadSafeQueue<AlertEvents> _queue;
+    ThreadSafeQueue<AlertEvents> _alertQueue;
+    ThreadSafeMap<std::string, MachineState> _msMap;
 
     //  tg (consumer)
     std::thread _tgThread;
