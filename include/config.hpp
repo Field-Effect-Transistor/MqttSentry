@@ -84,5 +84,10 @@ namespace Settings {
         bool addUser(const uint64_t u);
         bool removeUser(const uint64_t u);
         bool userExist(const uint64_t u);
+
+        //  Machine managment methodes
+        std::string resolveHmiName(const std::string& hmi_id);
+        bool addMachine(const std::string& mid, const std::string& pseudo);
+        bool removeMachine(const std::string& mid);
     };
 }// namespace Settings

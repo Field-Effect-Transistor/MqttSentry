@@ -21,6 +21,10 @@ TgService::TgService(Settings::ConfigManager& cm):
     _bot(cm.getTgConfig().token),
     _admin(_cm, _bot)
 {
+    _admin.set_getMachineState([this](const std::string& str, MachineState& ms) {
+        _getMachineState(str, ms);
+    });
+    
     _bot.getEvents().onCommand("stateof",[this](TgBot::Message::Ptr message) {
         auto uid = message->from->id;
        try {
@@ -37,11 +41,19 @@ TgService::TgService(Settings::ConfigManager& cm):
             }
             mid = text_to[1];
             _getMachineState(mid,ms);
-            _bot.getApi().sendMessage(uid, std::string("step_pos: ") + std::to_string(ms.state) + "\n ts: " + ms.ts );
+            _bot.getApi().sendMessage(
+                uid,
+                _cm.resolveHmiName(mid) + ":\n" + std::string("step_pos: ") + std::to_string(ms.state) + "\n ts: " + ms.ts,
+                nullptr,
+                nullptr,
+                nullptr,
+                "HTML"
+            );
        } catch (const std::exception& e) {
         std::cerr << "[TgService] err: " << e.what();
        } 
     });
+    _admin.registerInlineSearch();
     _admin.registerCommands();
     printf("Bot username: @%s\n", _bot.getApi().getMe()->username.c_str());
     _bot.getApi().deleteWebhook();
@@ -49,20 +61,19 @@ TgService::TgService(Settings::ConfigManager& cm):
 
 void TgService::runLongPoll() {
     _exit = false;
-    try {
-        TgBot::TgLongPoll longPoll(_bot);
-        while (true) {
+    TgBot::TgLongPoll longPoll(_bot);
+
+    while (!_exit) {
+        try {
             printf("[TgService] Long poll started\n");
             longPoll.start();
-            if(_exit) {
-                break;
-            }
-
             std::this_thread::sleep_for(std::chrono::seconds(1));
+        } catch (const std::exception& e) {
+            std::cerr << "[TgService] API/Network Error: " << e.what() << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(5));
         }
-    } catch (const std::exception& e) {
-        std::cerr << "[TgService] Exception in TgService::run: " << e.what() << std::endl;
     }
+    printf("[TgService] Long poll finished\n");
 }
 
 void TgService::sendAlert(const AlertEvents& alert) {

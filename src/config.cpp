@@ -3,6 +3,8 @@
 
 #include <fstream>
 
+#include "utils.hpp"
+
 using json = nlohmann::json;
 
 namespace Settings {
@@ -364,5 +366,59 @@ namespace Settings {
         return _write();
     }
 
-}   //  namespace Settings
+    std::string ConfigManager::resolveHmiName(const std::string& hmi_id) {
+        if (auto search = _logic.machines.find(hmi_id); search != _logic.machines.end()) {
+            return "<code>" + search->second + "</code> : <code>" + search->first + "</code>";
+        }
 
+        return "<code>" + hmi_id + "</code>";
+    }
+
+    bool ConfigManager::addMachine(const std::string& mid, const std::string& pseudo) {
+        auto mqtt = getMqttConfig();
+        auto& topic = mqtt.topic;
+        bool exist = false;
+        for (auto& each: mqtt.topic) {
+            try {
+                if (split(each, '/')[1] ==  mid) {
+                    exist = true;
+                    break;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "[ConfigManager] exception in addMachine method: " << e.what() << std::endl << std::flush;
+            }
+        }
+        if (exist)
+            return false;
+        topic.push_back("NordFrost/" + mid + "/#");
+        
+        auto logic = getLogicConfig();
+        auto& machines = logic.machines;
+        machines[mid] = pseudo;
+
+        return updateLogicConfig(logic) && updateMqttConfig(mqtt);
+    }
+
+    bool ConfigManager::removeMachine(const std::string& mid) {
+        auto mqtt = getMqttConfig();
+        auto& topic = mqtt.topic;
+        std::vector<std::string> temp;
+
+        for (auto& each: mqtt.topic) {
+            try {
+                if (split(each, '/')[1] ==  mid)
+                    continue;
+                temp.push_back(each);
+            } catch (const std::exception& e) {
+                std::cerr << "[ConfigManager] exception in removeMachine method: " << e.what() << std::endl << std::flush;
+            }
+        }
+        topic = temp;
+
+        auto logic = getLogicConfig();
+        logic.machines.erase(mid);
+        
+        return updateLogicConfig(logic) && updateMqttConfig(mqtt);
+    }
+
+}   //  namespace Settings

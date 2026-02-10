@@ -35,9 +35,9 @@ void MqttService::start() {
             auto hmi_id = split(t, '/').at(1);
             auto watchdog = std::make_shared<TopicWatchdog>(_ioc, hmi_id, _cm, [this, hmi_id](const WatchdogEvents event){
                 if (event == WatchdogEvents::Online) {
-                    _onAlert({AlertEvents::State::online, _resolveHmiName(hmi_id), "<b>Зв'язок:</b> знову на зв'язку", "NOW"});
+                    _onAlert({AlertEvents::State::online, _cm.resolveHmiName(hmi_id), "<b>Зв'язок:</b> знову на зв'язку", "NOW"});
                 } else {
-                    _onAlert({AlertEvents::State::offline, _resolveHmiName(hmi_id), "<b>Зв'язок:</b> не на зв'язку", "NOW"});
+                    _onAlert({AlertEvents::State::offline, _cm.resolveHmiName(hmi_id), "<b>Зв'язок:</b> не на зв'язку", "NOW"});
                 }
             });
             _watchdogs.push_back(watchdog);
@@ -95,9 +95,7 @@ void MqttService::_recieveLoop() {
             });
             return;
         }
-
-        std::cout << full_topic << std::endl;
-
+        
         //  extracting id and theme (state, alarm_kod, out, etc.) from topic
         auto topics = split(full_topic, '/');
         if (topics.size() != 3) {
@@ -131,7 +129,7 @@ void MqttService::_recieveLoop() {
                 ms.ts = data["ts"];
                 _onMS(id, ms);
             } catch (const std::exception& e) {
-                std::cerr << "[MqttService] failed to parse state of " << _resolveHmiName(id) << " with payload " << payload << std::endl ;
+                std::cerr << "[MqttService] failed to parse state of " << _cm.resolveHmiName(id) << " with payload " << payload << std::endl ;
             }
         } else if(theme == "alarm_kod") {
             unsigned int kod = 0;
@@ -147,11 +145,11 @@ void MqttService::_recieveLoop() {
                 auto& disabled_codes = logic.disabled_codes;
                 if (std::find(disabled_codes.begin(), disabled_codes.end(), kod) == disabled_codes.end()) {
                     auto codes = logic.code;
-                    _onAlert({AlertEvents::State::error, _resolveHmiName(id), codes.at(kod), ts});
+                    _onAlert({AlertEvents::State::error, _cm.resolveHmiName(id), codes.at(kod), ts});
                 }
 
             } catch (const std::out_of_range& e) {
-                _onAlert({AlertEvents::State::error, _resolveHmiName(id), std::string("Unknown error with code ") + std::to_string(kod), ts});
+                _onAlert({AlertEvents::State::error, _cm.resolveHmiName(id), std::string("Unknown error with code ") + std::to_string(kod), ts});
             } catch (const std::exception& e) {
                 std::cerr << "[MqttService] RecieveLoop Error: " << e.what() << std::endl;
             }
@@ -174,17 +172,5 @@ void MqttService::stop() {
                 }
             }       
         );
-    }
-}
-
-std::string MqttService::_resolveHmiName(const std::string& hmi_id) {
-    try {
-        auto machines = _cm.getLogicConfig().machines;
-        return machines.at(hmi_id);
-    } catch (const std::out_of_range& e) {
-        return  hmi_id;
-    } catch (const std::exception& e) {
-        std::cerr << "[MqttService] Exception in _resolveHmiName " << e.what() << std::endl;
-        return hmi_id;
     }
 }
