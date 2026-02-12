@@ -37,6 +37,7 @@ class AdminController {
     void _on_admin_timeouts(const uint64_t chatId, const uint32_t messageId);
     void _on_admin_users(const uint64_t chatId, const uint32_t messageId);
     void _on_admin_machines(const uint64_t chatId, const uint32_t messageId);
+    void _on_admin_errors(const uint64_t chatId, const uint32_t messageId);
 
     void _onAnyMessage(TgBot::Message::Ptr message);
 };

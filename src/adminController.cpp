@@ -122,6 +122,43 @@ void AdminController::registerCommands() {
             _bot.getApi().sendMessage(chatId, "📝 Введіть <b>ID машини</b>, яку потрібно видалити:", nullptr, nullptr, nullptr, "HTML");
         } else 
 
+        //  Errors
+        if (query->data == "admin_errors") {
+            _on_admin_errors(chatId, msgId);
+        } else if (query->data == "admin_errors_peek") {
+            std::string toSend;
+            auto code = _cm.getLogicConfig().code;
+            for (const auto& each: code) {
+                toSend += "<code>" + std::to_string(each.first) + "</code>:\t<code>" + each.second + "</code>\n";
+            }
+            _bot.getApi().sendMessage(chatId, toSend, nullptr, nullptr, nullptr, "HTML");
+        } else if(query->data == "admin_errors_add") {
+            _awaitingInput[query->from->id].key = "errors.add.code";
+            _bot.getApi().sendMessage(chatId, "📝 Введіть <b>Код помилки</b>, яку потрібно додати:", nullptr, nullptr, nullptr, "HTML");
+        } else if(query->data == "admin_errors_rem") {
+            _awaitingInput[query->from->id].key = "errors.rem";
+            _bot.getApi().sendMessage(chatId, "📝 Введіть <b>Код помилки</b>, яку потрібно видалити:", nullptr, nullptr, nullptr, "HTML");
+        } else if (query->data == "admin_ex_peek") {
+            std::string toSend;
+            auto logic = _cm.getLogicConfig();
+            auto& d_codes = logic.disabled_codes;
+            auto& code = logic.code;
+            for (const auto& each: d_codes) {
+                if (auto search = code.find(each); search != code.end()) {
+                    toSend += "<code>" + std::to_string(each) + "</code>:\t<code>" + search->second + "</code>\n";
+                } else {
+                    toSend += "<code>" + std::to_string(each) + "</code>\n";
+                }
+            }
+            _bot.getApi().sendMessage(chatId, toSend, nullptr, nullptr, nullptr, "HTML");
+        } else if(query->data == "admin_ex_add") {
+            _awaitingInput[query->from->id].key = "ex.add";
+            _bot.getApi().sendMessage(chatId, "📝 Введіть <b>Код винятка</b>, який потрібно додати:", nullptr, nullptr, nullptr, "HTML");
+        } else if(query->data == "admin_ex_rem") {
+            _awaitingInput[query->from->id].key = "ex.rem";
+            _bot.getApi().sendMessage(chatId, "📝 Введіть <b>Код винятка</b>, який потрібно видалити:", nullptr, nullptr, nullptr, "HTML");
+        } else
+
         if (query->data == "admin_restart") {
             std::cout << "[AdminController] App restarting...\n" << std::flush;
             _bot.getApi().sendMessage(chatId, "🚀 Система перезапускається. Почекайте ~15 секунд...");
@@ -138,33 +175,25 @@ void AdminController::_showAdminPannel(const uint64_t id) {
     Keyboard::Ptr keyboard(new Keyboard);
     Button::Ptr btnError(new Button()), btnTimeouts(new Button), btnMachines(new Button), btnUsers(new Button), btnRestart(new Button);
 
-    std::vector<Button::Ptr> row1, row2, row3, row4, row5;
-
     btnError->text = "⚠️ Помилки";
     btnError->callbackData = "admin_errors";
-    row1.push_back(btnError);
+    keyboard->inlineKeyboard.push_back({btnError});
 
     btnTimeouts->text = "⏲️ Таймаути";
     btnTimeouts->callbackData = "admin_timeouts";
-    row2.push_back(btnTimeouts);
+    keyboard->inlineKeyboard.push_back({btnTimeouts});
 
     btnMachines->text = "🤖 Роботи";
     btnMachines->callbackData = "admin_machines";
-    row3.push_back(btnMachines);
+    keyboard->inlineKeyboard.push_back({btnMachines});
 
     btnUsers->text = "👤 Користувачі";
     btnUsers->callbackData = "admin_users";
-    row4.push_back(btnUsers);
+    keyboard->inlineKeyboard.push_back({btnUsers});
 
     btnRestart->text = "🚀 Перезавантажити";
     btnRestart->callbackData = "admin_restart";
-    row5.push_back(btnRestart);
-
-    keyboard->inlineKeyboard.push_back(row1);
-    keyboard->inlineKeyboard.push_back(row2);
-    keyboard->inlineKeyboard.push_back(row3);
-    keyboard->inlineKeyboard.push_back(row4);
-    keyboard->inlineKeyboard.push_back(row5);
+    keyboard->inlineKeyboard.push_back({btnRestart});
     
     _bot.getApi().sendMessage(id, "🛠 <b>Адмін-панель керування</b>\nОберіть потрібну дію:", nullptr, nullptr, keyboard, "HTML");
 }
@@ -174,33 +203,25 @@ void AdminController::_on_admin(const uint64_t chatId, const uint32_t messageId)
     Keyboard::Ptr keyboard(new Keyboard);
     Button::Ptr btnError(new Button()), btnTimeouts(new Button), btnMachines(new Button), btnUsers(new Button), btnRestart(new Button);
 
-    std::vector<Button::Ptr> row1, row2, row3, row4, row5;
-
     btnError->text = "⚠️ Помилки";
     btnError->callbackData = "admin_errors";
-    row1.push_back(btnError);
+    keyboard->inlineKeyboard.push_back({btnError});
 
     btnTimeouts->text = "⏲️ Таймаути";
     btnTimeouts->callbackData = "admin_timeouts";
-    row2.push_back(btnTimeouts);
+    keyboard->inlineKeyboard.push_back({btnTimeouts});
 
     btnMachines->text = "🤖 Роботи";
     btnMachines->callbackData = "admin_machines";
-    row3.push_back(btnMachines);
+    keyboard->inlineKeyboard.push_back({btnMachines});
 
     btnUsers->text = "👤 Користувачі";
     btnUsers->callbackData = "admin_users";
-    row4.push_back(btnUsers);
+    keyboard->inlineKeyboard.push_back({btnUsers});
 
     btnRestart->text = "🚀 Перезавантажити";
     btnRestart->callbackData = "admin_restart";
-    row5.push_back(btnRestart);
-
-    keyboard->inlineKeyboard.push_back(row1);
-    keyboard->inlineKeyboard.push_back(row2);
-    keyboard->inlineKeyboard.push_back(row3);
-    keyboard->inlineKeyboard.push_back(row4);
-    keyboard->inlineKeyboard.push_back(row5);
+    keyboard->inlineKeyboard.push_back({btnRestart});
     
     _bot.getApi().editMessageText(
         "🛠 <b>Адмін-панель керування</b>\nОберіть потрібну дію:", 
@@ -212,23 +233,17 @@ void AdminController::_on_admin_timeouts(const uint64_t chatId, const uint32_t m
     Keyboard::Ptr keyboard(new Keyboard);
     Button::Ptr btnChangeTimeout(new Button), btnChangeTimeoutLimit(new Button), btnBack(new Button);
 
-    std::vector<Button::Ptr> row1, row2, row3;
-
     btnChangeTimeout->text = "Змінити час таймаута";
     btnChangeTimeout->callbackData = "admin_timeouts_change";
-    row1.push_back(btnChangeTimeout);
+    keyboard->inlineKeyboard.push_back({btnChangeTimeout});
 
     btnChangeTimeoutLimit->text = "Змінити кількість таймаутів з оповіщенням";
     btnChangeTimeoutLimit->callbackData = "admin_timeouts_limit_change";
-    row2.push_back(btnChangeTimeoutLimit);
+    keyboard->inlineKeyboard.push_back({btnChangeTimeoutLimit});
 
     btnBack->text = "Назад";
     btnBack->callbackData = "admin";
-    row3.push_back(btnBack);
-
-    keyboard->inlineKeyboard.push_back(row1);
-    keyboard->inlineKeyboard.push_back(row2);
-    keyboard->inlineKeyboard.push_back(row3);
+    keyboard->inlineKeyboard.push_back({btnBack});
     
     auto logic = _cm.getLogicConfig();
     std::string toSend = "⏲️ <b>Поточні налаштування таймаутів: </b>\n Час таймаута: " + std::to_string(logic.timeout) +
@@ -242,28 +257,21 @@ void AdminController::_on_admin_users(const uint64_t chatId, const uint32_t mess
     Keyboard::Ptr keyboard(new Keyboard);
     Button::Ptr btnPeek(new Button), btnAdd(new Button), btnRem(new Button), btnBack(new Button);
 
-    std::vector<Button::Ptr> row1, row2, row3, row4;
-
     btnPeek->text = "Переглянути";
     btnPeek->callbackData = "admin_users_peek";
-    row1.push_back(btnPeek);
+    keyboard->inlineKeyboard.push_back({btnPeek});
 
     btnAdd->text = "Додати";
     btnAdd->callbackData = "admin_users_add";
-    row2.push_back(btnAdd);
+    keyboard->inlineKeyboard.push_back({btnAdd});
 
     btnRem->text = "Видалити";
     btnRem->callbackData = "admin_users_rem";
-    row3.push_back(btnRem);
+    keyboard->inlineKeyboard.push_back({btnRem});
 
     btnBack->text = "Назад";
     btnBack->callbackData = "admin";
-    row4.push_back(btnBack);
-
-    keyboard->inlineKeyboard.push_back(row1);
-    keyboard->inlineKeyboard.push_back(row2);
-    keyboard->inlineKeyboard.push_back(row3);
-    keyboard->inlineKeyboard.push_back(row4);
+    keyboard->inlineKeyboard.push_back({btnBack});
 
     _bot.getApi().editMessageText(
         "👤 Користувачі", chatId, messageId, "", "HTML", nullptr, keyboard
@@ -274,38 +282,57 @@ void AdminController::_on_admin_machines(const uint64_t chatId, const uint32_t m
     Keyboard::Ptr keyboard(new Keyboard);
     Button::Ptr btnPeek(new Button()), btnAdd(new Button), btnRem(new Button), btnState(new Button), btnBack(new Button);
 
-    std::vector<Button::Ptr> row1, row2, row3, row4, row5;
-
     btnPeek->text = "Переглянути";
     btnPeek->callbackData = "admin_machines_peek";
-    row1.push_back(btnPeek);
+    keyboard->inlineKeyboard.push_back({btnPeek});
 
     btnAdd->text = "Додати";
     btnAdd->callbackData = "admin_machines_add";
-    row2.push_back(btnAdd);
+    keyboard->inlineKeyboard.push_back({btnAdd});
 
     btnRem->text = "Видалити";
     btnRem->callbackData = "admin_machines_rem";
-    row3.push_back(btnRem);
+    keyboard->inlineKeyboard.push_back({btnRem});
 
     btnState->text = "Стан робота";
-    //btnState->callbackData = "admin_machines_state";
     btnState->switchInlineQueryCurrentChat = "stateof ";
-    row4.push_back(btnState);
+    keyboard->inlineKeyboard.push_back({btnState});
 
     btnBack->text = "Назад";
     btnBack->callbackData = "admin";
-    row5.push_back(btnBack);
-
-    keyboard->inlineKeyboard.push_back(row1);
-    keyboard->inlineKeyboard.push_back(row2);
-    keyboard->inlineKeyboard.push_back(row3);
-    keyboard->inlineKeyboard.push_back(row4);
-    keyboard->inlineKeyboard.push_back(row5);
+    keyboard->inlineKeyboard.push_back({btnBack});
 
     _bot.getApi().editMessageText(
         "🤖 Роботи", chatId, messageId, "", "HTML", nullptr, keyboard
     );
+}
+
+void AdminController::_on_admin_errors(const uint64_t chatId, const uint32_t messageId) {
+    Keyboard::Ptr keyboard(new Keyboard);
+    Button::Ptr btnPeekErrors(new Button), btnAddErrors(new Button), btnRemErrors(new Button),
+        btnPeekEx(new Button), btnAddEx(new Button), btnRemEx(new Button);
+    
+    btnPeekErrors->text = "Переглянути список помилок";
+    btnPeekErrors->callbackData = "admin_errors_peek";
+    keyboard->inlineKeyboard.push_back({btnPeekErrors});
+    
+    btnAddErrors->text = "Додати помилку";
+    btnAddErrors->callbackData = "admin_errors_add";
+    btnRemErrors->text = "Прибрати помилку";
+    btnRemErrors->callbackData = "admin_errors_rem";
+    keyboard->inlineKeyboard.push_back({btnAddErrors, btnRemErrors});
+
+    btnPeekEx->text = "Переглянути список винятків";
+    btnPeekEx->callbackData = "admin_ex_peek";
+    keyboard->inlineKeyboard.push_back({btnPeekEx});
+
+    btnAddEx->text = "Додати виняток";
+    btnAddEx->callbackData = "admin_ex_add";
+    btnRemEx->text = "Прибрати виняток";
+    btnRemEx->callbackData = "admin_ex_rem";
+    keyboard->inlineKeyboard.push_back({btnAddEx, btnRemEx});
+
+    _bot.getApi().editMessageText("⚠️ Помилки", chatId, messageId, "", "HTML", nullptr, keyboard);
 }
 
 void AdminController::_onAnyMessage(TgBot::Message::Ptr message) {
@@ -365,6 +392,41 @@ void AdminController::_onAnyMessage(TgBot::Message::Ptr message) {
                 success = _cm.addMachine(it->second.param, message->text);
             } else if (key == "machines.rem") {
                 success = _cm.removeMachine(message->text);
+            } else 
+
+            //  Errors
+            if (key == "errors.add.code") {
+                it->second.param = message->text;
+                it->second.key = "errors.add.des";
+                _bot.getApi().sendMessage(message->chat->id, "📝 Введіть <b>Опис помилки</b>:", nullptr, nullptr, nullptr, "HTML");
+            } else if (key == "errors.add.des") {
+                try{
+                    success = _cm.addError(std::stoul(it->second.param), message->text);
+                } catch (const std::exception& e) {
+                    std::cerr << "[AdminController] " << e.what() <<std::flush << std::endl;;
+                    _bot.getApi().sendMessage(message->chat->id, "❌ Помилка: код має бути числом.");
+                }
+            } else if (key == "errors.rem") {
+                try {
+                    success = _cm.remError(std::stoul(message->text));
+                } catch (const std::exception& e) {
+                    std::cerr << "[AdminController] " << e.what() <<std::flush << std::endl;;
+                    _bot.getApi().sendMessage(message->chat->id, "❌ Помилка: код має бути числом.");
+                }
+            } else if (key == "ex.add") {
+                try {
+                    success = _cm.addEx(std::stoul(message->text));
+                } catch (const std::exception& e) {
+                    std::cerr << "[AdminController] " << e.what() <<std::flush << std::endl;;
+                    _bot.getApi().sendMessage(message->chat->id, "❌ Помилка: код має бути числом.");
+                }
+            } else if (key == "ex.rem") {
+                try {
+                    success = _cm.remEx(std::stoul(message->text));
+                } catch (const std::exception& e) {
+                    std::cerr << "[AdminController] " << e.what() <<std::flush << std::endl;;
+                    _bot.getApi().sendMessage(message->chat->id, "❌ Помилка: код має бути числом.");
+                }
             }
 
             if (success) {

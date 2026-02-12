@@ -148,159 +148,6 @@ namespace Settings {
         return true;
     }
 
-/*
-    template<typename U>
-    bool ConfigManager::update(const std::string& key, const U& value) {
-        std::lock_guard<std::mutex> lock(_mutex);
-        bool updated = false;
-
-        //  TELEGRAM
-        if (key == "tg.token") {
-            if constexpr (std::is_same_v<U, decltype(_tg.token)>) {
-                _tg.token = value;
-                updated = true;
-            }
-        } else if (key == "tg.users") {
-            if constexpr (std::is_same_v<U, decltype(_tg.users)>) {
-                _tg.users = value;
-                updated = true;
-            }
-        } else
-
-        //  MQTT
-        if (key == "mqtt.broker") {
-            if constexpr (std::is_same_v<U, decltype(_mqtt.broker)>) {
-                _mqtt.broker = value;
-                updated = true;
-            }
-        } else if (key == "mqtt.port") {
-            if constexpr (std::is_convertible_v<U, decltype(_mqtt.port)>) {
-                _mqtt.port = value;
-                updated = true;
-            }
-        } else if (key == "mqtt.client_id") {
-            if constexpr (std::is_same_v<U, decltype(_mqtt.client_id)>) {
-                _mqtt.client_id = value;
-                updated = true;
-            }
-        } else if (key == "mqtt.client_name") {
-            if constexpr (std::is_same_v<U, decltype(_mqtt.client_name)>) {
-                _mqtt.client_name = value;
-                updated = true;
-            }
-        } else if (key == "mqtt.pwd") {
-            if constexpr (std::is_same_v<U, decltype(_mqtt.pwd)>) {
-                _mqtt.pwd = value;
-                updated = true;
-            }
-        } else if (key == "mqtt.topic") {
-            if constexpr (std::is_same_v<U, decltype(_mqtt.topic)>) {
-                _mqtt.topic = value;
-                updated = true;
-            }
-        } else
-
-        //  LOGIC
-        if (key == "logic.timeout") {
-            if constexpr (std::is_same_v<U, decltype(_logic.timeout)>) {
-                _logic.timeout = value;
-                updated = true;
-            }
-        } else if (key == "logic.code") {
-            if constexpr (std::is_same_v<U, decltype(_logic.code)>) {
-                _logic.code = value;
-                updated = true;
-            }
-        } else if (key == "logic.timeout_limit") {
-            if constexpr (std::is_same_v<U, decltype(_logic.timeout_limit)>) {
-                _logic.timeout_limit = value;
-                updated = true;
-            }
-        }
-
-        if (updated) {
-            std::cout << "Info: value of " << key << "was updated\n";
-            return _write();
-        } else {
-            std::cerr << "[ERROR] failed to update value of " << key;
-            return false;
-        }
-    }
-    template bool ConfigManager::update<std::string>(const std::string&, const std::string&);
-    template bool ConfigManager::update<const char*>(const std::string&, const char* const&);
-    template bool ConfigManager::update<int>(const std::string&, const int&);
-    template bool ConfigManager::update<unsigned short>(const std::string&, const unsigned short&);
-    template bool ConfigManager::update<time_t>(const std::string&, const time_t&);
-    template bool ConfigManager::update<std::vector<std::string>>(const std::string&, const std::vector<std::string>&);
-    template bool ConfigManager::update<std::unordered_map<unsigned int, std::string>>(const std::string&, const std::unordered_map<unsigned int, std::string>&);
-
-    template<typename U>
-    std::optional<U> ConfigManager::get(const std::string& key) {
-        std::lock_guard<std::mutex> lock(_mutex);
-        //  TELEGRAM
-        if (key == "tg.token") {
-            if constexpr (std::is_same_v<U, decltype(_tg.token)>) {
-                return _tg.token;
-            }
-        } else if ( key == "tg.users") {
-            if constexpr (std::is_same_v<U, decltype(_tg.users)>) {
-                return _tg.users;
-            }
-        } else 
-
-        //  MQTT
-        if (key == "mqtt.broker") {
-            if constexpr(std::is_same_v<U, decltype(_mqtt.broker)>) {
-                return _mqtt.broker;
-            }
-        } else if (key == "mqtt.port") {
-            if constexpr (std::is_convertible_v<U, decltype(_mqtt.port)>) {
-                return _mqtt.port;
-            }
-        } else if (key == "mqtt.client_id") {
-            if constexpr (std::is_same_v<U, decltype(_mqtt.client_id)>) {
-                return _mqtt.client_id;
-            }
-        } else if (key == "mqtt.client_name") {
-            if constexpr (std::is_same_v<U, decltype(_mqtt.client_name)>) {
-                return _mqtt.client_name;
-            }
-        } else if (key == "mqtt.pwd") {
-            if constexpr (std::is_same_v<U, decltype(_mqtt.pwd)>) {
-                return _mqtt.pwd;
-            }
-        } else if (key == "mqtt.topic") {
-            if constexpr (std::is_same_v<U, decltype(_mqtt.topic)>) {
-                return _mqtt.topic;
-            }
-        } else
-
-        //  LOGIC
-        if (key == "logic.timeout") {
-            if constexpr (std::is_same_v<U, decltype(_logic.timeout)>) {
-                return _logic.timeout;
-            }
-        } else if (key == "logic.code") {
-            if constexpr (std::is_same_v<U, decltype(_logic.code)>) {
-                return _logic.code;
-            }
-        } else if (key == "logic.timeout_limit") {
-            if constexpr (std::is_same_v<U, decltype(_logic.timeout_limit)>) {
-                return _logic.timeout_limit;
-            }
-        }
-
-        throw std::runtime_error("config::get error with key: " + key + "\n");
-        return std::nullopt;
-    }
-    template std::optional<std::string> ConfigManager::get<std::string>(const std::string&);
-    template std::optional<time_t> ConfigManager::get<time_t>(const std::string&);
-    template std::optional<unsigned short> ConfigManager::get<unsigned short>(const std::string&);
-    template std::optional<unsigned int> ConfigManager::get<unsigned int>(const std::string&);
-    template std::optional<std::vector<std::string>> ConfigManager::get<std::vector<std::string>>(const std::string&);
-    template std::optional<std::unordered_map<unsigned int, std::string>> ConfigManager::get<std::unordered_map<unsigned int, std::string>>(const std::string&);
-*/
-
     bool ConfigManager::userExist(const uint64_t u) {
         auto v = getTgConfig().users;
         for (auto it = v.begin(); it != v.end(); ++it) {
@@ -419,6 +266,50 @@ namespace Settings {
         logic.machines.erase(mid);
         
         return updateLogicConfig(logic) && updateMqttConfig(mqtt);
+    }
+
+    bool ConfigManager::addError(const unsigned int code, const std::string& des) {
+        auto logic = getLogicConfig();
+        auto& codes = logic.code;
+        if (auto search = codes.find(code); search != codes.end()) {
+            return false;
+        } else {
+            codes[code] = des;
+        }
+
+        return updateLogicConfig(logic);
+    }
+
+    bool ConfigManager::remError(const unsigned int code) {
+        auto logic = getLogicConfig();
+        auto& codes = logic.code;
+        std::unordered_map<unsigned int, std::string> temp;
+        for (auto& each: codes) {
+            if (each.first != code) {
+                temp [each.first] = each.second;
+            }
+        }
+        codes = temp;
+        return updateLogicConfig(logic);
+    }
+
+    bool ConfigManager::addEx(const unsigned int code) {
+        auto logic = getLogicConfig();
+        logic.disabled_codes.push_back(code);
+        return updateLogicConfig(logic);
+    }
+
+    bool ConfigManager::remEx(const unsigned int code) {
+        auto logic = getLogicConfig();
+        auto& d_codes = logic.disabled_codes;
+        std::vector<unsigned int> temp;
+        for (auto each: d_codes) {
+            if (each != code) {
+                temp.push_back(each);
+            }
+        }
+        d_codes = temp;
+        return updateLogicConfig(logic);
     }
 
 }   //  namespace Settings

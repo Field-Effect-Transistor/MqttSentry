@@ -66,12 +66,6 @@ namespace Settings {
         ConfigManager(const std::string& configFileName);
         ~ConfigManager() {};
 
-        //  deprecated setters n getters
-        //template<typename U>
-        //bool update(const std::string& key, const U& value);
-        //template<typename U>
-        //std::optional<U> get(const std::string& key);
-
         tg      getTgConfig()   const { std::lock_guard<std::mutex> lock(_mutex);   return _tg; };
         mqtt    getMqttConfig() const { std::lock_guard<std::mutex> lock(_mutex);   return _mqtt; };
         logic   getLogicConfig() const { std::lock_guard<std::mutex> lock(_mutex); return _logic; };
@@ -89,5 +83,11 @@ namespace Settings {
         std::string resolveHmiName(const std::string& hmi_id);
         bool addMachine(const std::string& mid, const std::string& pseudo);
         bool removeMachine(const std::string& mid);
+
+        //  Errors
+        bool addError(const unsigned int code, const std::string& des);
+        bool remError(const unsigned int code);
+        bool addEx(const unsigned int code);
+        bool remEx(const unsigned int code);
     };
 }// namespace Settings
