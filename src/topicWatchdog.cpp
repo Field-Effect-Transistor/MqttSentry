@@ -16,6 +16,7 @@ TopicWatchdog::TopicWatchdog(
 }
 
 void TopicWatchdog::pet() {
+    _timer->cancel();
     if (_timeouts) {
         _callback(WatchdogEvents::Online);
         _timeouts = 0;

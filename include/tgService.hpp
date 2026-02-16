@@ -10,15 +10,42 @@
 #include <memory>
 #include <atomic>
 
+/**
+ * @brief   Керує телеграм ботом
+ */
 class TgService {    
     public:
+    /**
+     * @param cm посилання на конфіг менеджер
+     */
     TgService(Settings::ConfigManager& cm); 
-    //~TgService();
+    ~TgService() = default;
 
+    /**
+     * @brief функція-обробник тг запитів, блокуюча, для виходу з циклу див. stop()
+     */
     void runLongPoll();
+
+    /**
+     * @brief форматована відправка сповіщень
+     * 
+     * @param alert посилання на структуру-контейнер інформації про оповіщення
+     */
     void sendAlert(const AlertEvents& alert);
+
+    /**
+     * @brief метод-зупинка обробника тг запитів, див. runLongPoll()
+     */
     void stop() { _exit = true; };
+
+    /**
+     * @brief Всатновити функцію-провайдера для отримання поточного стану машини
+     */
     void set_getMachineState(const std::function<void(const std::string&, MachineState&)>& func) { _getMachineState = func; };
+
+    /**
+     * @brief Всатновити функцію-провайдера для отримання поточного стану машини
+     */
     void set_getMachineLight(const std::function<void(const std::string&, MachineLight&)>& func) { _getMachineLight = func; };
 
     private:
@@ -26,8 +53,8 @@ class TgService {
     TgBot::Bot _bot;
     std::atomic<bool> _exit;
     AdminController _admin;
+    
     std::function<void(const std::string&, MachineState&)> _getMachineState;
     std::function<void(const std::string&, MachineLight&)> _getMachineLight;
-    //void onStart();
 };
 

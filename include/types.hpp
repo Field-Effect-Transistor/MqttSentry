@@ -35,6 +35,7 @@ struct MachineLight {
     std::string ts;
 };
 
+//  ethalone threadsafe template queue container class
 template<typename U>
 class ThreadSafeQueue {
     std::queue<U> _queue;
@@ -72,6 +73,7 @@ class ThreadSafeQueue {
 
 };
 
+//  ethalone threadsafe template map container class
 template<typename K, typename V>
 class ThreadSafeMap {
 private:

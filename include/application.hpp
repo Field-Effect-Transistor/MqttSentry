@@ -10,36 +10,67 @@
 #include <thread>
 #include <atomic>
 
+
+/**
+ * @brief Головний клас додатка, що оркеструє роботу всіх сервісів.
+ * 
+ * @details Реалізує патерн "Producer-Consumer":
+ * - MqttService (Producer): отримує дані з мережі та кладе в чергу.
+ * - WorkerThread (Consumer): забирає дані з черги та відправляє через TgService.
+ * Також керує життєвим циклом потоків та обробкою системних сигналів.
+ */
 class Application {
+private:
+    /// Менеджер конфігурації (завантажується першим)
     Settings::ConfigManager _cm;
     
-    //  thread safe queue
-    ThreadSafeQueue<AlertEvents> _alertQueue;
+    /** @name Спільне сховище даних (Thread-Safe) */
+    /// @{
+    ThreadSafeQueue<AlertEvents> _alertQueue;             ///< Черга подій для відправки в Telegram
+    ThreadSafeMap<std::string, AlertEvents>  _alertMap;   ///< Останні тривоги за пристроями
+    ThreadSafeMap<std::string, MachineState> _msMap;      ///< Поточні стани HMI
+    ThreadSafeMap<std::string, MachineLight> _lightMap;   ///< Дані лічильників (ECO/Light)
+    /// @}
+
+    /** @name Telegram компоненти */
+    /// @{
+    std::thread _tgThread;    ///< Потік для LongPoll (блокуючий)
+    TgService   _tg;          ///< Сервіс взаємодії з Telegram API
+    std::thread _workerThread;///< Потік обробника черги (Consumer)
     
-    //  tread safe maps
-    ThreadSafeMap<std::string, AlertEvents>  _alertMap;
-    ThreadSafeMap<std::string, MachineState> _msMap;
-    ThreadSafeMap<std::string, MachineLight> _lightMap;
-
-    //  tg (consumer)
-    std::thread _tgThread;
-    TgService   _tg;
-    std::thread _workerThread;
+    /** @brief Цикл роботи потіка-воркера */
     void _workerLoop();
+    /// @}
 
-    //  mqtt (producer)
-    boost::asio::io_context _ioc;
-    MqttService _mqtt;
+    /** @name MQTT та Мережеві компоненти */
+    /// @{
+    boost::asio::io_context _ioc;      ///< Контекст вводу-виводу
+    MqttService _mqtt;                 ///< Сервіс взаємодії з MQTT брокером
+    boost::asio::signal_set _signals;  ///< Обробник системних сигналів (SIGINT/SIGTERM)
+    /// @}
 
-    boost::asio::signal_set _signals;       //  for Sign INT and TERM
+    std::atomic<bool> _running; ///< Прапорець активності додатка
 
-
-    std::atomic<bool> _running;
-
-    public:
+public:
+    /**
+     * @brief Конструктор додатка.
+     * @param configFilePath Шлях до файлу налаштувань JSON.
+     */
     Application(const std::string& configFilePath);
+
+    /**
+     * @brief Граціозно зупиняє всі сервіси та приєднує потоки.
+     */
     ~Application();
 
+    /**
+     * @brief Основна точка входу. Запускає всі потоки та блокує main.
+     */
     void run();
+
+    /**
+     * @brief Ініціює процес зупинки програми.
+     */
     void stop();
 };
+
