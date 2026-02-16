@@ -66,7 +66,8 @@ namespace Settings {
             { "timeout_limit", l.timeout_limit},
             { "disabled_codes", l.disabled_codes},
             { "code", l.code},
-            { "machines", l.machines}
+            { "machines", l.machines},
+            { "poses", l.poses}
         });
     }
 
@@ -85,6 +86,9 @@ namespace Settings {
         }
         if (j.contains("machines")) {
             j.at("machines").get_to(l.machines);
+        }
+        if (j.contains("poses")) {
+            j.at("poses").get_to(l.poses);
         }
     }
 
@@ -113,7 +117,7 @@ namespace Settings {
                 _mqtt = data.at("mqtt").get<mqtt>();
             }
             if (data.contains("logic")) {
-                _logic = data.at("logic"). get<logic>();
+                _logic = data.at("logic").get<logic>();
             }
 
         } catch (const json::parse_error& e) {
@@ -215,7 +219,7 @@ namespace Settings {
 
     std::string ConfigManager::resolveHmiName(const std::string& hmi_id) {
         if (auto search = _logic.machines.find(hmi_id); search != _logic.machines.end()) {
-            return "<code>" + search->second + "</code> : <code>" + search->first + "</code>";
+            return "<code>" + search->second + "</code>";
         }
 
         return "<code>" + hmi_id + "</code>";

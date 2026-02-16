@@ -5,6 +5,9 @@
 
 #include "utils.hpp"
 
+using Keyboard = TgBot::InlineKeyboardMarkup;
+using Button = TgBot::InlineKeyboardButton; 
+
 bool AdminController::_isAdmin(uint64_t userId) {
     auto config = _cm.getTgConfig();
     auto& admins = config.admins;
@@ -45,6 +48,73 @@ void AdminController::registerCommands() {
             std::cerr << "[AdminController] Exception in on admin lambda" << e.what() << std::endl;
         }
 
+    });
+
+    _bot.getEvents().onCommand("stateof",[this](TgBot::Message::Ptr message) {
+        auto uid = message->from->id;
+        try {
+            if(!_cm.userExist(uid)) {
+                _bot.getApi().sendMessage(uid, "Користувач незареєстрований, спробуй /start");    
+                return;
+            }
+            std::string mid;
+            MachineState ms;
+            MachineLight ml;
+            auto text_to = split(message->text, ' ');
+            
+            switch (text_to.size()) {
+                case 1: {
+                    Button::Ptr btnState(new Button);
+                    Keyboard::Ptr keyboard(new Keyboard);
+
+                    btnState->text = "Стан робота";
+                    btnState->switchInlineQueryCurrentChat = "stateof ";
+                    keyboard->inlineKeyboard.push_back({btnState});
+
+                    _bot.getApi().sendMessage(
+                        uid, "Натисніть на цю кнопку для швидкого пошуку", nullptr, nullptr, keyboard, "HTML"
+                    );
+                    break;
+                }
+                case 2: {
+                    mid = text_to[1];
+                    std::string toSend = _cm.resolveHmiName(mid) + ":\n";
+                    
+                    //  
+                    _getMachineState(mid, ms);
+                    auto logic = _cm.getLogicConfig();
+                    auto& poses = logic.poses;
+                    if (auto search = poses.find(ms.state); search != poses.end()) {
+                        toSend += std::string("step_pos: ") + std::to_string(ms.state) + " " + search->second + "\nts: " + ms.ts;
+                    } else {
+                        toSend += std::string("step_pos: ") + std::to_string(ms.state) + "\n ts: " + ms.ts;
+                    }
+
+                    toSend += "\n───────────────────";
+
+                    _getMachineLight(mid, ml);
+                    toSend += std::string("\ntime_on_eco: ") + formatTime(ml.time_on_eco)
+                        + std::string("\ntime_on_light: ") + formatTime(ml.time_on_light)
+                        + std::string("\nts: ") + ml.ts;
+
+                    _bot.getApi().sendMessage(
+                        uid,
+                        toSend,
+                        nullptr,
+                        nullptr,
+                        nullptr,
+                        "HTML"
+                    );
+                    break;
+                }
+                default:
+                    _bot.getApi().sendMessage(uid, "⚠️ Використання: <code>/stateof MACHINE_ID</code>",0, 0, 0, "HTML");
+                    return;
+            }
+    
+        } catch (const std::exception& e) {
+            std::cerr << "[TgService] err: " << e.what();
+        } 
     });
 
     _bot.getEvents().onAnyMessage([this](TgBot::Message::Ptr message) {
@@ -169,8 +239,6 @@ void AdminController::registerCommands() {
     });
 }
 
-using Keyboard = TgBot::InlineKeyboardMarkup;
-using Button = TgBot::InlineKeyboardButton; 
 void AdminController::_showAdminPannel(const uint64_t id) {
     Keyboard::Ptr keyboard(new Keyboard);
     Button::Ptr btnError(new Button()), btnTimeouts(new Button), btnMachines(new Button), btnUsers(new Button), btnRestart(new Button);
@@ -310,7 +378,7 @@ void AdminController::_on_admin_machines(const uint64_t chatId, const uint32_t m
 void AdminController::_on_admin_errors(const uint64_t chatId, const uint32_t messageId) {
     Keyboard::Ptr keyboard(new Keyboard);
     Button::Ptr btnPeekErrors(new Button), btnAddErrors(new Button), btnRemErrors(new Button),
-        btnPeekEx(new Button), btnAddEx(new Button), btnRemEx(new Button);
+        btnPeekEx(new Button), btnAddEx(new Button), btnRemEx(new Button), btnBack(new Button);
     
     btnPeekErrors->text = "Переглянути список помилок";
     btnPeekErrors->callbackData = "admin_errors_peek";
@@ -331,6 +399,10 @@ void AdminController::_on_admin_errors(const uint64_t chatId, const uint32_t mes
     btnRemEx->text = "Прибрати виняток";
     btnRemEx->callbackData = "admin_ex_rem";
     keyboard->inlineKeyboard.push_back({btnAddEx, btnRemEx});
+
+    btnBack->text = "Назад";
+    btnBack->callbackData = "admin";
+    keyboard->inlineKeyboard.push_back({btnBack});
 
     _bot.getApi().editMessageText("⚠️ Помилки", chatId, messageId, "", "HTML", nullptr, keyboard);
 }
@@ -379,12 +451,7 @@ void AdminController::_onAnyMessage(TgBot::Message::Ptr message) {
             } else
 
             //  Machines 
-            if (key == "machines.state") {
-                MachineState ms;
-                _getMachineState(text, ms);
-                _bot.getApi().sendMessage(message->chat->id, std::string("step_pos: ") + std::to_string(ms.state) + "\n ts: " + ms.ts );
-                success = true;
-            } else if (key == "machines.add.id") {
+            if (key == "machines.add.id") {
                 it->second.param = message->text;
                 it->second.key = "machines.add.pseudo";
                 _bot.getApi().sendMessage(message->chat->id, "📝 Введіть <b>Підпис машини</b>:", nullptr, nullptr, nullptr, "HTML");
@@ -445,50 +512,48 @@ void AdminController::_onAnyMessage(TgBot::Message::Ptr message) {
 
 void AdminController::registerInlineSearch() {
     _bot.getEvents().onInlineQuery([this](TgBot::InlineQuery::Ptr query) {
-        try {
-            std::string text = query->query;
-            auto tokens = split(text,' ');
-            for (auto token: tokens) {
-                std::cout << token << std::endl << std::flush;
-            }
-            if (tokens.size() == 0 || tokens.size() > 2) {
-                _bot.getApi().answerInlineQuery(query->id, {});
-                return;
-            }
-            if (tokens.size() == 1){
-                tokens.push_back("");
-            }
-
-            if (auto& command = tokens[0], &s_id = tokens[1]; command  == "stateof") {
-                std::vector<TgBot::InlineQueryResult::Ptr> results;
-
-                auto machines = _cm.getLogicConfig().machines;
-
-                int id = 0;
-                for (auto const& [m_id, name] : machines) {
-                    if (s_id.empty() || m_id.find(s_id) != std::string::npos || name.find(s_id) != std::string::npos) {
-                        
-                        TgBot::InlineQueryResultArticle::Ptr val(new TgBot::InlineQueryResultArticle);
-                        val->id = std::to_string(id++);
-                        val->title = name;
-                        val->description = "ID: " + m_id;
-                        
-                        TgBot::InputTextMessageContent::Ptr content(new TgBot::InputTextMessageContent);
-                        content->messageText = "/stateof " + m_id;
-                        val->inputMessageContent = content;
-
-                        results.push_back(val);
-                    }
-                    if (results.size() > 20) break;
+        if (_cm.userExist(query->from->id))
+            try {
+                std::string text = query->query;
+                auto tokens = split(text,' ');
+                if (tokens.size() == 0 || tokens.size() > 2) {
+                    _bot.getApi().answerInlineQuery(query->id, {});
+                    return;
+                }
+                if (tokens.size() == 1){
+                    tokens.push_back("");
                 }
 
-                _bot.getApi().answerInlineQuery(query->id, results);
-            } else {
-                _bot.getApi().answerInlineQuery(query->id, {});
+                if (auto& command = tokens[0], &s_id = tokens[1]; command  == "stateof") {
+                    std::vector<TgBot::InlineQueryResult::Ptr> results;
+
+                    auto machines = _cm.getLogicConfig().machines;
+
+                    int id = 0;
+                    for (auto const& [m_id, name] : machines) {
+                        if (s_id.empty() || m_id.find(s_id) != std::string::npos || name.find(s_id) != std::string::npos) {
+                            
+                            TgBot::InlineQueryResultArticle::Ptr val(new TgBot::InlineQueryResultArticle);
+                            val->id = std::to_string(id++);
+                            val->title = name;
+                            val->description = "ID: " + m_id;
+                            
+                            TgBot::InputTextMessageContent::Ptr content(new TgBot::InputTextMessageContent);
+                            content->messageText = "/stateof " + m_id;
+                            val->inputMessageContent = content;
+
+                            results.push_back(val);
+                        }
+                        if (results.size() > 20) break;
+                    }
+
+                    _bot.getApi().answerInlineQuery(query->id, results);
+                } else {
+                    _bot.getApi().answerInlineQuery(query->id, {});
+                }
+            } catch(const std::exception& e) {
+                std::cerr << "[AdminController] Exception in registerInlineSearch lambda " << e.what() << std::endl << std::flush;
             }
-        } catch(const std::exception& e) {
-            std::cerr << "[AdminController] Exception in registerInlineSearch lambda " << e.what() << std::endl << std::flush;
-        }
     }
     );
         

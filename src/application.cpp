@@ -28,13 +28,20 @@ Application::~Application() {
 }
 
 void Application::run() {
-    //  starting tg
 
+    //  STARTING TELEGRAM SERVICE
     _tg.set_getMachineState([this](const std::string& id, MachineState& ms) {
-        if (_msMap.get(id) != std::nullopt)
-            ms = *_msMap.get(id);
+        if (auto _ms = _msMap.get(id); _ms != std::nullopt)
+            ms = *_ms;
         else {
             ms = {0, "Немає даних"};
+        }
+    });
+    _tg.set_getMachineLight([this](const std::string& id, MachineLight& ml) {
+        if (auto _l = _lightMap.get(id); _l != std::nullopt) {
+            ml = *_l;
+        } else {
+            ml = {0, 0, "Немає даних"};
         }
     });
     _workerThread = std::thread(&Application::_workerLoop, this);
@@ -42,14 +49,32 @@ void Application::run() {
         _tg.runLongPoll();
     });
 
-    //  starting mqtt
+    //  STARTING MQTT SERVICE
     _mqtt.setOnAlert([this](const AlertEvents alert){
-        std::cout << "[ThreadSafeQueue] New value pushed " << alert.machine_id
-            << '|' << alert.message
-            << '|' << alert.timestamp << std::endl << std::flush;
-        _alertQueue.push(alert);
+        if (auto prev = _alertMap.get(alert.machine_id); prev == std::nullopt || prev->state != alert.state) {
+            _alertQueue.push(alert);
+        }
+        _alertMap.set(alert.machine_id, alert);
     });
     _mqtt.setOnMSCallback([this](const std::string& id, const MachineState ms) {
+        auto prev = _msMap.get(id);
+        if (prev.has_value()) {
+            if (prev->state == 0 && (ms.state == 1 || ms.state == 2)) {
+                _alertQueue.push({
+                    AlertEvents::State::pump_on,
+                    _cm.resolveHmiName(id),
+                    "Увімкнено зимовий режим",
+                    ms.ts
+                });
+            } else if (ms.state == 0 && (prev->state == 1 || prev->state == 2)) {
+                    _alertQueue.push({
+                    AlertEvents::State::pump_off,
+                    _cm.resolveHmiName(id),
+                    "Вимкнено зимовий режим",
+                    ms.ts
+                });
+            }
+        }
         try {
             _msMap.set(id, ms);
         } catch (const std::exception& e) {
@@ -57,6 +82,14 @@ void Application::run() {
         }
         
     });
+    _mqtt.setOnLightCallback([this](const std::string id, const MachineLight l){
+        try {
+            _lightMap.set(id,l);
+        } catch(const std::exception& e) {
+            std::cerr << "[App] " << e.what() << std::endl << std::flush;
+        }
+    });
+
     _mqtt.start();
 
     std::cout << "[App] App running...\n" << std::flush;

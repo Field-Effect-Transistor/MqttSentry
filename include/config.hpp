@@ -45,6 +45,9 @@ namespace Settings {
         std::unordered_map<std::string, std::string> machines{
             {"B83DF67CE1D5", "Testing Machine"}
         };
+        std::unordered_map<unsigned int, std::string> poses{
+            {0, "IDLE"}
+        };
     };
     void to_json(nlohmann::json& j, const logic& l);
     void from_json(const nlohmann::json& j, logic& l);

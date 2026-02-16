@@ -120,7 +120,19 @@ void MqttService::_recieveLoop() {
                 return;
             }
         }
-        if (theme == "state") {
+
+        if (theme == "time_light_ECO") {
+            try {
+                nlohmann::json data = nlohmann::json::parse(payload);
+                MachineLight light;
+                light.ts = data["ts"];
+                light.time_on_eco = data["d"]["time_on_ECO"][0];
+                light.time_on_light = data["d"]["time_on_light"][0];
+                _onLight(id, light);
+            } catch (const std::exception& e) {
+                std::cerr << "[MqttService] failed to parse time_light_ECO of" << _cm.resolveHmiName(id) << " with payload " << payload << "cuzz" << e.what() << std::endl << std::flush;
+            }
+        } else if (theme == "state") {
             watchdog->pet();
             try {
                 nlohmann::json data = nlohmann::json::parse(payload);
@@ -129,7 +141,7 @@ void MqttService::_recieveLoop() {
                 ms.ts = data["ts"];
                 _onMS(id, ms);
             } catch (const std::exception& e) {
-                std::cerr << "[MqttService] failed to parse state of " << _cm.resolveHmiName(id) << " with payload " << payload << std::endl ;
+                std::cerr << "[MqttService] failed to parse state of " << _cm.resolveHmiName(id) << " with payload " << payload << "cuzz" << e.what() << std::endl ;
             }
         } else if(theme == "alarm_kod") {
             unsigned int kod = 0;
@@ -145,7 +157,11 @@ void MqttService::_recieveLoop() {
                 auto& disabled_codes = logic.disabled_codes;
                 if (std::find(disabled_codes.begin(), disabled_codes.end(), kod) == disabled_codes.end()) {
                     auto codes = logic.code;
-                    _onAlert({AlertEvents::State::error, _cm.resolveHmiName(id), codes.at(kod), ts});
+                    if (kod == 0) {
+                        _onAlert({AlertEvents::State::fine, _cm.resolveHmiName(id), codes.at(kod), ts});
+                    } else {
+                        _onAlert({AlertEvents::State::error, _cm.resolveHmiName(id), codes.at(kod), ts});
+                    }
                 }
 
             } catch (const std::out_of_range& e) {

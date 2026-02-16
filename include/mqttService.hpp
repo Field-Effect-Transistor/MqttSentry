@@ -16,6 +16,7 @@ class MqttService {
 
     using OnMSCallback = std::function<void(const std::string, const MachineState)>;
     using OnAlertCallback = std::function<void(const AlertEvents)>;
+    using OnLightCallback = std::function<void(const std::string, const MachineLight)>;
     using MqttClient = boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket, std::monostate, boost::mqtt5::logger>;
     
     MqttService(
@@ -29,6 +30,7 @@ class MqttService {
 
     void setOnAlert(OnAlertCallback onAlert) { _onAlert = onAlert; };
     void setOnMSCallback(OnMSCallback onMS) { _onMS = onMS; };
+    void setOnLightCallback(OnLightCallback onLight) { _onLight = onLight; };
 
     private:
     Settings::ConfigManager& _cm;
@@ -37,6 +39,7 @@ class MqttService {
     std::vector<std::shared_ptr<TopicWatchdog>> _watchdogs;
     OnAlertCallback _onAlert;
     OnMSCallback _onMS;
+    OnLightCallback _onLight;
 
     std::shared_ptr<boost::asio::steady_timer> _retryTimer;
 

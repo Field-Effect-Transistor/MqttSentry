@@ -13,13 +13,17 @@
 class Application {
     Settings::ConfigManager _cm;
     
-    //  thread save queue
+    //  thread safe queue
     ThreadSafeQueue<AlertEvents> _alertQueue;
+    
+    //  tread safe maps
+    ThreadSafeMap<std::string, AlertEvents>  _alertMap;
     ThreadSafeMap<std::string, MachineState> _msMap;
+    ThreadSafeMap<std::string, MachineLight> _lightMap;
 
     //  tg (consumer)
     std::thread _tgThread;
-    TgService _tg;
+    TgService   _tg;
     std::thread _workerThread;
     void _workerLoop();
 

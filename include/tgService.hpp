@@ -19,6 +19,7 @@ class TgService {
     void sendAlert(const AlertEvents& alert);
     void stop() { _exit = true; };
     void set_getMachineState(const std::function<void(const std::string&, MachineState&)>& func) { _getMachineState = func; };
+    void set_getMachineLight(const std::function<void(const std::string&, MachineLight&)>& func) { _getMachineLight = func; };
 
     private:
     Settings::ConfigManager& _cm;
@@ -26,6 +27,7 @@ class TgService {
     std::atomic<bool> _exit;
     AdminController _admin;
     std::function<void(const std::string&, MachineState&)> _getMachineState;
+    std::function<void(const std::string&, MachineLight&)> _getMachineLight;
     //void onStart();
 };
 

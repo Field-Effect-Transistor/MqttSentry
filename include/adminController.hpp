@@ -17,6 +17,7 @@ class AdminController {
     TgBot::Bot& _bot;
     std::map<uint64_t, PendingAction> _awaitingInput;
     std::function<void(const std::string&, MachineState&)> _getMachineState;
+    std::function<void(const std::string&, MachineLight&)> _getMachineLight;
 
     bool _isAdmin(uint64_t userId);
 
@@ -29,6 +30,7 @@ class AdminController {
     void registerCommands();
     void registerInlineSearch();
     void set_getMachineState(const std::function<void(const std::string&, MachineState&)>& func) { _getMachineState = func; };
+    void set_getMachineLight(const std::function<void(const std::string&, MachineLight&)>& func) { _getMachineLight = func; };
     
     private:
     void _showAdminPannel(const uint64_t id);

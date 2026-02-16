@@ -14,3 +14,12 @@ inline std::vector<std::string> split(const std::string& s, char delimiter) {
     }
     return tokens;
 }
+
+inline std::string formatTime(const unsigned long seconds) {
+    auto s = seconds % 60;
+    auto m = seconds / 60 % 60;
+    auto h = seconds / 60 / 60;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%luг %luхв %luс", h, m, s);
+    return std::string(buf);
+}

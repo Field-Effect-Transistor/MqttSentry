@@ -12,9 +12,12 @@
 
 struct AlertEvents {
     enum class State {
+        fine,
         online,
         offline,
-        error
+        error,
+        pump_on,
+        pump_off
     } state;
     std::string machine_id;
     std::string message;
@@ -23,6 +26,12 @@ struct AlertEvents {
 
 struct MachineState {
     unsigned short state;
+    std::string ts;
+};
+
+struct MachineLight {
+    unsigned long int time_on_eco;
+    unsigned long int time_on_light;
     std::string ts;
 };
 
