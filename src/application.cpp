@@ -56,7 +56,7 @@ void Application::run() {
         }
         _alertMap.set(alert.machine_id, alert);
     });
-    _mqtt.setOnMSCallback([this](const std::string& id, const MachineState ms) {
+    _mqtt.setOnMachineState([this](const std::string& id, const MachineState ms) {
         auto prev = _msMap.get(id);
         if (prev.has_value()) {
             if (prev->state == 0 && (ms.state == 1 || ms.state == 2)) {
@@ -82,11 +82,72 @@ void Application::run() {
         }
         
     });
-    _mqtt.setOnLightCallback([this](const std::string id, const MachineLight l){
+    _mqtt.setOnLight([this](const std::string id, const MachineLight l){
         try {
             _lightMap.set(id,l);
         } catch(const std::exception& e) {
             std::cerr << "[App] " << e.what() << std::endl << std::flush;
+        }
+    });
+    _mqtt.setOnMachineIn([this](const std::string id, const MachineIn mIn) {
+        History<MachineIn> in;
+        if (auto in_h = _mIn.get(id); in_h != std::nullopt) {
+            in = *in_h;
+            in.update(mIn);
+            _mIn.set(id, in);
+        } else {
+            _mIn.set(id, {mIn, 0});
+            return;
+        }
+
+        History<MachineOut> out;
+        if (auto out_h = _mOut.get(id); out_h != std::nullopt) {
+            out = *out_h;
+        } else {
+            return;
+        }
+
+        if (
+            (out.current.out_ECO1   || out.current.out_ECO2)    &&      //  Якщо еко працює нині
+            (out.previous.out_ECO1  || out.previous.out_ECO2)   &&      //  та працював минулого оповіщення
+            (in.current.in_pres_NF == 0 && in.previous.in_pres_NF == 1) //  але тиск зник
+        ) {
+            AlertEvents alert {
+                AlertEvents::State::eco_malfunction,
+                _cm.resolveHmiName(id),
+                std::string("Підозра на некоректну роботу eco ") + (out.current.out_ECO1 ? "1" : "2"),
+                in.current.ts
+            };
+
+/*  
+            //for one time notification
+            if (auto prev = _alertMap.get(alert.machine_id); prev == std::nullopt || prev->state != alert.state) {
+                _alertQueue.push(alert);
+            }
+            _alertMap.set(alert.machine_id, alert);
+*/
+            //  for continious notifications
+            _alertQueue.push(alert);
+        }
+
+
+    });
+    _mqtt.setOnMachineOut([this](const std::string id, const MachineOut mOut){
+        History<MachineOut> out;
+        if (auto out_h = _mOut.get(id); out_h != std::nullopt) {
+            out = *out_h;
+            out.update(mOut);
+            _mOut.set(id, out);
+        } else {
+            _mOut.set(id, {mOut, 0});
+            return;
+        }
+
+        History<MachineIn> in;
+        if (auto in_h = _mIn.get(id); in_h != std::nullopt) {
+            in = *in_h;
+        } else {
+            return;
         }
     });
 

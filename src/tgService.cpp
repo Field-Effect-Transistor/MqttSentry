@@ -21,10 +21,10 @@ TgService::TgService(Settings::ConfigManager& cm):
     _bot(cm.getTgConfig().token),
     _admin(_cm, _bot)
 {
-    _admin.set_getMachineState([this](const std::string& id, MachineState& ms) {
+    _admin.setMachineStateProvider([this](const std::string& id, MachineState& ms) {
         _getMachineState(id, ms);
     });
-    _admin.set_getMachineLight([this](const std::string& id, MachineLight& ml) {
+    _admin.setMachineLightProvider([this](const std::string& id, MachineLight& ml) {
         _getMachineLight(id, ml);
     });
     
@@ -57,9 +57,11 @@ void TgService::sendAlert(const AlertEvents& alert) {
         case AlertEvents::State::fine:      toSend += "✅ "; break;
         case AlertEvents::State::online:    toSend += "📶 "; break;
         case AlertEvents::State::offline:   toSend += "🚫 "; break;
+        case AlertEvents::State::eco_malfunction:
         case AlertEvents::State::error:     toSend += "🚨 "; break;
         case AlertEvents::State::pump_on:   toSend += "🟢 "; break; 
         case AlertEvents::State::pump_off:  toSend += "🔴 "; break; 
+        default:                            toSend += "? "; break;
     }
     toSend += alert.message + "\n";
     if (alert.timestamp != "NOW") {

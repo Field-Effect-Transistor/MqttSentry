@@ -26,10 +26,12 @@ private:
     
     /** @name Спільне сховище даних (Thread-Safe) */
     /// @{
-    ThreadSafeQueue<AlertEvents> _alertQueue;             ///< Черга подій для відправки в Telegram
-    ThreadSafeMap<std::string, AlertEvents>  _alertMap;   ///< Останні тривоги за пристроями
-    ThreadSafeMap<std::string, MachineState> _msMap;      ///< Поточні стани HMI
-    ThreadSafeMap<std::string, MachineLight> _lightMap;   ///< Дані лічильників (ECO/Light)
+    ThreadSafeQueue<AlertEvents> _alertQueue;           ///< Черга подій для відправки в Telegram
+    ThreadSafeMap<std::string, AlertEvents>  _alertMap; ///< Останні тривоги за пристроями
+    ThreadSafeMap<std::string, MachineState> _msMap;    ///< Поточні стани HMI
+    ThreadSafeMap<std::string, MachineLight> _lightMap; ///< Дані лічильників (ECO/Light)
+    ThreadSafeMap<std::string, History<MachineIn>> _mIn;         ///< Дані з входу машини (2 останні значення)
+    ThreadSafeMap<std::string, History<MachineOut>> _mOut;       ///< Дані з виходу машини (2 останні значення)
     /// @}
 
     /** @name Telegram компоненти */

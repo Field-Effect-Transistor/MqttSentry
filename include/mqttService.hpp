@@ -17,14 +17,16 @@
 class MqttService {
     public:
 
-    using OnMSCallback = std::function<void(const std::string, const MachineState)>;
-    using OnAlertCallback = std::function<void(const AlertEvents)>;
-    using OnLightCallback = std::function<void(const std::string, const MachineLight)>;
+    using OnAlert =         std::function<void(const AlertEvents)>;
+    using OnMS =            std::function<void(const std::string, const MachineState)>;
+    using OnLight =         std::function<void(const std::string, const MachineLight)>;
+    using OnMachineIn =     std::function<void(const std::string, const MachineIn)>;
+    using OnMachineOut =    std::function<void(const std::string, const MachineOut)>;
     using MqttClient = boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket, std::monostate, boost::mqtt5::logger>;
     
     /**
      * @param cm    посилання на конфіг менедежер
-     * @param ioc   посилання на асинхронний контекст вводу/виводу, потрібен для роботи таймерів та роботи mqtt клієнта
+     * @param ioc   посилання на асинхронний контекст вводу/виводу, потрібен для роботи таймерів та mqtt клієнта
      */
     MqttService(
         Settings::ConfigManager& cm,
@@ -38,37 +40,22 @@ class MqttService {
     void start();
     void stop();
 
-    /**
-     * @brief Встановлює обробник для критичних тривог.
-     * @param callback Функція, яка буде викликана при отриманні коду помилки.
-     */
-    void setOnAlert(OnAlertCallback callback) { 
-        _onAlert = std::move(callback); 
-    }
+    void setOnAlert(OnAlert callback) { _onAlert = std::move(callback); }
+    void setOnMachineState(OnMS callback) { _onMS = std::move(callback); }
+    void setOnLight(OnLight callback) { _onLight = std::move(callback); }
+    void setOnMachineIn(OnMachineIn callback) { _onMIn = std::move(callback); }
+    void setOnMachineOut(OnMachineOut callback) { _onMOut = std::move(callback); }
 
-    /**
-     * @brief Встановлює обробник для оновлення поточного стану машини (позиція/таймштамп).
-     * @param callback Функція, що буде викликана при отриманні оновленого стану машини
-     */
-    void setOnMachineStateCallback(OnMSCallback callback) { 
-        _onMS = std::move(callback); 
-    }
-
-    /**
-     * @brief Встановлює обробник для оновлення даних лічильників (ECO/Light).
-     * @param callback Функція, що буде викликана при отриманні нових даних
-     */
-    void setOnLightCallback(OnLightCallback callback) { 
-        _onLight = std::move(callback); 
-    }
     private:
     Settings::ConfigManager& _cm;
     boost::asio::io_context& _ioc;
     std::shared_ptr<MqttClient> _client;
     std::vector<std::shared_ptr<TopicWatchdog>> _watchdogs;
-    OnAlertCallback _onAlert;
-    OnMSCallback _onMS;
-    OnLightCallback _onLight;
+    OnAlert         _onAlert;   ///< обробник для критичних тривог.
+    OnMS            _onMS;      ///< обробник для оновлення поточного стану машини (позиція/таймштамп).
+    OnLight         _onLight;   ///< обробник для оновлення даних лічильників (ECO/Light)
+    OnMachineIn     _onMIn;     ///< обробник для оновлення поточного входу на машину
+    OnMachineOut    _onMOut;    ///< обробник для оновлення поточного виходу машини
 
     std::shared_ptr<boost::asio::steady_timer> _retryTimer;
 

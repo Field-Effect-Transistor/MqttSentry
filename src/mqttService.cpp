@@ -141,7 +141,7 @@ void MqttService::_recieveLoop() {
                 ms.ts = data["ts"];
                 _onMS(id, ms);
             } catch (const std::exception& e) {
-                std::cerr << "[MqttService] failed to parse state of " << _cm.resolveHmiName(id) << " with payload " << payload << "cuzz" << e.what() << std::endl ;
+                std::cerr << "[MqttService] failed to parse state of " << _cm.resolveHmiName(id) << " with payload " << payload << "cuzz" << e.what() << std::endl;
             }
         } else if(theme == "alarm_kod") {
             unsigned int kod = 0;
@@ -168,6 +168,20 @@ void MqttService::_recieveLoop() {
                 _onAlert({AlertEvents::State::error, _cm.resolveHmiName(id), std::string("Unknown error with code ") + std::to_string(kod), ts});
             } catch (const std::exception& e) {
                 std::cerr << "[MqttService] RecieveLoop Error: " << e.what() << std::endl;
+            }
+        } else if (theme == "in_not_fil") {
+            try {
+                MachineIn min = nlohmann::json::parse(payload);
+                _onMIn(id, min);
+            } catch(const std::exception& e) {
+                std::cerr << "[MqttService] failed to parse \"in_not_fil\" of" << _cm.resolveHmiName(id) << " with payload " <<  payload << "cuzz" << e.what() << std::endl;
+            }
+        } else if (theme == "out") {
+            try {
+                MachineOut mout = nlohmann::json::parse(payload);
+                _onMOut(id, mout);
+            } catch(const std::exception& e) {
+                std::cerr << "[MqttService] failed to parse \"out\" of" << _cm.resolveHmiName(id) << " with payload " <<  payload << "cuzz" << e.what() << std::endl;
             }
         }
         

@@ -10,6 +10,8 @@
 #include <condition_variable>
 #include <optional>
 
+#include <nlohmann/json.hpp>
+
 struct AlertEvents {
     enum class State {
         fine,
@@ -17,7 +19,8 @@ struct AlertEvents {
         offline,
         error,
         pump_on,
-        pump_off
+        pump_off,
+        eco_malfunction
     } state;
     std::string machine_id;
     std::string message;
@@ -34,6 +37,67 @@ struct MachineLight {
     unsigned long int time_on_light;
     std::string ts;
 };
+
+struct MachineIn {
+    bool in_holod;
+    bool in_holod_ver;
+    bool in_night;
+    bool in_pres_NF;
+    bool in_svitlo;
+    std::string ts;
+};
+
+/**
+ * @brief Десеріалізація JSON-об'єкта (nlohmann::json) у структуру MachineIn
+ * 
+ * @param j [in] JSON-об'єкт, у якого будуть вичитані дані
+ * @param min [out]  структура, у яку дані будуть записані
+ */
+inline void from_json(const nlohmann::json& j, MachineIn& min) {
+    int buff = j["in_holod_nf"][0];
+    min.in_holod = buff;
+    buff = j["in_holod_ver_nf"][0];
+    min.in_holod_ver = buff;
+    buff = j["in_night_nf"][0];
+    min.in_night = buff;
+    buff = j["in_pres_nf_NF"][0];
+    min.in_pres_NF = buff;
+    buff = j["in_svitlo_nf"][0];
+    min.in_svitlo = buff;
+    min.ts = j["ts"];
+}
+
+struct MachineOut {
+    bool out_ECO1;
+    bool out_ECO2;
+    bool out_RB_blok;
+    bool out_air;
+    bool out_alarm_sig;
+    bool out_osn_klap_NF;
+    std::string ts;
+};
+
+/**
+ * @brief Десеріалізація JSON-об'єкта (nlohmann::json) у структуру MachineOut
+ * 
+ * @param j [in] JSON-об'єкт, у якого будуть вичитані дані
+ * @param min [out]  структура, у яку дані будуть записані
+ */
+inline void from_json(const nlohmann::json& j, MachineOut& mout) {
+    int buff = j["out_ECO1"][0];
+    mout.out_ECO1 = buff;
+    buff = j["out_ECO2"][0];
+    mout.out_ECO2 = buff;
+    buff = j["out_RB_blok"][0];
+    mout.out_RB_blok = buff;
+    buff = j["out_air"][0];
+    mout.out_air = buff;
+    buff = j["out_alarm_sig"][0];
+    mout.out_alarm_sig = buff;
+    buff = j["out_osn_klap_NF"][0];
+    mout.out_osn_klap_NF = buff;
+    mout.ts = j["ts"];
+}
 
 //  ethalone threadsafe template queue container class
 template<typename U>
@@ -105,4 +169,21 @@ public:
         return _map.find(key) != _map.end();
     }
 
+};
+
+/**
+ * @brief Структура для запису двох останніх відомих станів
+ */
+template<typename T>
+struct History {
+    T current;
+    T previous;
+    
+    /**
+    * @brief оновлює 2 останні значення
+    */
+    void update(const T& next) {
+        previous = std::move(current);
+        current = next;
+    }
 };
