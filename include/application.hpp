@@ -26,12 +26,12 @@ private:
     
     /** @name Спільне сховище даних (Thread-Safe) */
     /// @{
-    ThreadSafeQueue<AlertEvents> _alertQueue;           ///< Черга подій для відправки в Telegram
-    ThreadSafeMap<std::string, AlertEvents>  _alertMap; ///< Останні тривоги за пристроями
-    ThreadSafeMap<std::string, MachineState> _msMap;    ///< Поточні стани HMI
-    ThreadSafeMap<std::string, MachineLight> _lightMap; ///< Дані лічильників (ECO/Light)
-    ThreadSafeMap<std::string, History<MachineIn>> _mIn;         ///< Дані з входу машини (2 останні значення)
-    ThreadSafeMap<std::string, History<MachineOut>> _mOut;       ///< Дані з виходу машини (2 останні значення)
+    ThreadSafeQueue<AlertEvents> _alertQueue;               ///< Черга подій для відправки в Telegram
+    ThreadSafeMap<std::string, AlertEvents>  _alertMap;     ///< Останні тривоги за пристроями
+    ThreadSafeMap<std::string, MachineState> _msMap;        ///< Поточні стани HMI
+    ThreadSafeMap<std::string, MachineLight> _lightMap;     ///< Дані лічильників (ECO/Light)
+    ThreadSafeMap<std::string, History<MachineIn>> _mIn;    ///< Дані з входу машини (2 останні значення)
+    ThreadSafeMap<std::string, History<MachineOut>> _mOut;  ///< Дані з виходу машини (2 останні значення)
     /// @}
 
     /** @name Telegram компоненти */
@@ -51,6 +51,7 @@ private:
     boost::asio::signal_set _signals;  ///< Обробник системних сигналів (SIGINT/SIGTERM)
     /// @}
 
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> _work_guard; ///< Тримає io_context живим, навіть якщо немає активних задач
     std::atomic<bool> _running; ///< Прапорець активності додатка
 
 public:

@@ -46,6 +46,8 @@ class MqttService {
     void setOnMachineIn(OnMachineIn callback) { _onMIn = std::move(callback); }
     void setOnMachineOut(OnMachineOut callback) { _onMOut = std::move(callback); }
 
+    inline bool isConnected() { return _isConnected; }
+
     private:
     Settings::ConfigManager& _cm;
     boost::asio::io_context& _ioc;
@@ -56,8 +58,11 @@ class MqttService {
     OnLight         _onLight;   ///< обробник для оновлення даних лічильників (ECO/Light)
     OnMachineIn     _onMIn;     ///< обробник для оновлення поточного входу на машину
     OnMachineOut    _onMOut;    ///< обробник для оновлення поточного виходу машини
+    std::atomic<bool> _isConnected;
 
     std::shared_ptr<boost::asio::steady_timer> _retryTimer;
+
+    void _subscribeToTopics();
 
     /**
      * @brief внутрішня функція-обробник відповідей

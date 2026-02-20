@@ -17,57 +17,32 @@ inline std::vector<std::string> split(const std::string& s, char delimiter) {
 MqttService::MqttService(
     Settings::ConfigManager& cm,
     boost::asio::io_context& ioc
-): _cm(cm), _ioc(ioc) {
+): _cm(cm), _ioc(ioc), _isConnected(false) {
     //  creating mqtt client
     _client = std::make_shared<MqttClient>(MqttClient(ioc, {}, boost::mqtt5::logger(boost::mqtt5::log_level::debug)));  
+
+    //  settin up client
+    boost::mqtt5::connect_props cprop;
+    cprop[boost::mqtt5::prop::session_expiry_interval] = 300;
+    _client->connect_properties(cprop);
+
+    auto mqttConfig = _cm.getMqttConfig();
+    _client->brokers(mqttConfig.broker, mqttConfig.port).credentials(
+        mqttConfig.client_id,
+        mqttConfig.client_name,
+        mqttConfig.pwd
+    );
+    
     _retryTimer = std::make_shared<boost::asio::steady_timer>(ioc);
 }
 
 void MqttService::start() {
     try {
-        //  prepere topics to subs
-        auto s_topics = _cm.getMqttConfig().topic;
-        std::vector<boost::mqtt5::subscribe_topic> topics;
-        topics.reserve(s_topics.size());
-        _watchdogs.clear();
-        for (const auto& t : s_topics) {
-            //  creating watchdogs + givin them callback function so they notify on machine dis- / connections
-            auto hmi_id = split(t, '/').at(1);
-            auto watchdog = std::make_shared<TopicWatchdog>(_ioc, hmi_id, _cm, [this, hmi_id](const WatchdogEvents event){
-                if (event == WatchdogEvents::Online) {
-                    _onAlert({AlertEvents::State::online, _cm.resolveHmiName(hmi_id), "<b>Зв'язок:</b> знову на зв'язку", "NOW"});
-                } else {
-                    _onAlert({AlertEvents::State::offline, _cm.resolveHmiName(hmi_id), "<b>Зв'язок:</b> не на зв'язку", "NOW"});
-                }
-            });
-            _watchdogs.push_back(watchdog);
-            watchdog->start_timer();
-
-            topics.push_back({t});  //  preparing topics for subs
-        }
-
-        //  settin up client
-        auto mqttConfig = _cm.getMqttConfig();
-        _client->brokers(mqttConfig.broker, mqttConfig.port)
-            .credentials(
-                mqttConfig.client_id,
-                mqttConfig.client_name,
-                mqttConfig.pwd
-            );
-
         _client->async_run([](boost::mqtt5::error_code ec) {
             std::cerr << "[MqttService] Stopped. Reason: " << ec.message() << std::endl;
-        }); 
-        
-        _client->async_subscribe(
-            topics, boost::mqtt5::subscribe_props {},
-            [](boost::mqtt5::error_code ec, std::vector<boost::mqtt5::reason_code>, boost::mqtt5::suback_props) {
-                if (!ec)
-                    std::cout << "[MqttService] Successfully subscribed via MQTT!" << std::endl;
-                else
-                    std::cerr << "[MqttService] Subscribing error: " << ec.message() << std::endl;
-            }
-        );
+        });
+
+        this->_subscribeToTopics();
     } catch (const std::exception& e) {
         std::cerr << "[MqttService] start() Error: " << e.what() << std::endl << std::flush;
     }
@@ -84,17 +59,26 @@ void MqttService::_recieveLoop() {
         std::string payload, 
         boost::mqtt5::publish_props
     ) {
-        if (ec == boost::asio::error::operation_aborted) return;
-
+        if (ec == boost::asio::error::operation_aborted) {
+            this->_isConnected = false;
+            return;
+        }
         if(ec) {
-            std::cerr << "[MqttService] Error: " << ec.message() << ". Retrying in 5s...\n";
+            std::cerr << "[MqttService] Error: " << ec.message() << ". Retrying in 10s...\n";
+
+            if (ec == boost::mqtt5::client::error::session_expired) {
+                std::cout << "[MqttService] Session expired. Re-subscribing..." << std::endl;
+                this->_subscribeToTopics();
+            }
             
-            _retryTimer->expires_after(std::chrono::seconds(5));
+            _retryTimer->expires_after(std::chrono::seconds(10));
             _retryTimer->async_wait([this](const boost::system::error_code& timer_ec){
                 if (!timer_ec) this->_recieveLoop();
             });
             return;
         }
+
+        this->_isConnected = true;
         
         //  extracting id and theme (state, alarm_kod, out, etc.) from topic
         auto topics = split(full_topic, '/');
@@ -203,4 +187,48 @@ void MqttService::stop() {
             }       
         );
     }
+}
+
+void MqttService::_subscribeToTopics() {
+    //  prepere topics to subs
+    auto s_topics = _cm.getMqttConfig().topic;
+    std::vector<boost::mqtt5::subscribe_topic> topics;
+    topics.reserve(s_topics.size());
+    for (auto& w : _watchdogs) {
+        w->stop();
+    }
+    _watchdogs.clear();
+    for (const auto& t : s_topics) {
+        //  creating watchdogs + givin them callback function so they notify on machine dis- / connections
+        auto hmi_id = split(t, '/').at(1);
+        auto watchdog = std::make_shared<TopicWatchdog>(
+            _ioc,
+            hmi_id,
+            _cm,
+            [this, hmi_id](const WatchdogEvents event){
+                if (event == WatchdogEvents::Online) {
+                    _onAlert({AlertEvents::State::online, _cm.resolveHmiName(hmi_id), "<b>Зв'язок:</b> знову на зв'язку", "NOW"});
+                } else {
+                    _onAlert({AlertEvents::State::offline, _cm.resolveHmiName(hmi_id), "<b>Зв'язок:</b> не на зв'язку", "NOW"});
+                }
+            },
+            [this]() {  return this->isConnected(); }
+        );
+        _watchdogs.push_back(watchdog);
+        watchdog->start_timer();
+
+        topics.push_back({t});  //  preparing topics for subs
+    }
+    
+    _client->async_subscribe(
+        topics, boost::mqtt5::subscribe_props {},
+        [this](boost::mqtt5::error_code ec, std::vector<boost::mqtt5::reason_code>, boost::mqtt5::suback_props) {
+            if (!ec) {
+                std::cout << "[MqttService] Successfully subscribed via MQTT!" << std::endl;
+                this->_isConnected = true;
+            }
+            else
+                std::cerr << "[MqttService] Subscribing error: " << ec.message() << std::endl;
+        }
+    );
 }

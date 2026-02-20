@@ -45,7 +45,7 @@ void TgService::runLongPoll() {
             std::this_thread::sleep_for(std::chrono::seconds(1));
         } catch (const std::exception& e) {
             std::cerr << "[TgService] API/Network Error: " << e.what() << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(5));
+            std::this_thread::sleep_for(std::chrono::seconds(30));
         }
     }
     printf("[TgService] Long poll finished\n");

@@ -20,6 +20,7 @@ enum class WatchdogEvents {
  * @brief Тип функції зворотного виклику для сповіщення про зміну стану пристрою.
  */
 using WatchdogCallback = std::function<void(const WatchdogEvents)>;
+using ConnectionProvider = std::function<bool()>;
 
 /**
  * @brief Відстежує серцебиття конкретного пристрою через MQTT.
@@ -33,6 +34,7 @@ private:
     Settings::ConfigManager& _cm;
     unsigned int _timeouts;
     WatchdogCallback _callback;    
+    ConnectionProvider _cp;
 
 public:
     /**
@@ -45,10 +47,11 @@ public:
         boost::asio::io_context& ioc,
         const std::string& hmi_id,
         Settings::ConfigManager& cm,
-        WatchdogCallback callback
+        WatchdogCallback callback,
+        ConnectionProvider cp
     );
 
-    ~TopicWatchdog() = default;
+    ~TopicWatchdog() {  std::cout << "[TopicWatchdog:" << _hmi_id << "] destroyed\n"; };
 
     /**
      * @brief Скинути вотчдог. Викликається при кожному вхідному повідомленні від пристрою.
@@ -60,6 +63,11 @@ public:
      * @brief Запускає або перезапускає асинхронне очікування таймауту.
      */
     void start_timer();
+
+    /**
+     * @brief Зупиняє/знищує watchdog
+     */
+    void stop();
 
     /**
      * @brief Повертає ID пристрою, за яким закріплений цей ватчдог.

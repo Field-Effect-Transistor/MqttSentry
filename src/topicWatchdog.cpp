@@ -9,8 +9,9 @@ TopicWatchdog::TopicWatchdog(
     boost::asio::io_context& ioc,
     const std::string& hmi_id,
     Settings::ConfigManager& cm,
-    WatchdogCallback callback
-) : _hmi_id(hmi_id),  _cm(cm), _timeouts(0), _callback(callback) {
+    WatchdogCallback callback,
+    ConnectionProvider cp
+) : _hmi_id(hmi_id),  _cm(cm), _timeouts(0), _callback(callback), _cp(cp) {
     _timer = std::make_shared<boost::asio::steady_timer>(ioc);
     std::cout << "[TopicWatchdog:" << hmi_id << "] created\n";
 }
@@ -41,10 +42,22 @@ void TopicWatchdog::start_timer() {
 }
 
 void TopicWatchdog::on_timeout() {
+    if(_cp) {
+        start_timer();
+        return;
+    }
+
     auto timeout_limit = _cm.getLogicConfig().timeout_limit;
     std::cout << "TopicWatchdog::on_timeout() "<< _timeouts << '/' << timeout_limit << std::endl;
+
     if (_timeouts++ < timeout_limit) {
         _callback(WatchdogEvents::Offline);
         start_timer();
+    }
+}
+
+void TopicWatchdog::stop() {
+    if (_timer) {
+        _timer->cancel();
     }
 }

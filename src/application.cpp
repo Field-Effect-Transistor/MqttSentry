@@ -6,6 +6,7 @@ Application::Application(const std::string& configFilePath)
     _tg(_cm),
     _mqtt(_cm, _ioc),
     _signals(_ioc),
+    _work_guard(boost::asio::make_work_guard(_ioc)),
     _running(true)
 {
     _signals.add(SIGINT);
@@ -67,7 +68,7 @@ void Application::run() {
                     ms.ts
                 });
             } else if (ms.state == 0 && (prev->state == 1 || prev->state == 2)) {
-                    _alertQueue.push({
+                _alertQueue.push({
                     AlertEvents::State::pump_off,
                     _cm.resolveHmiName(id),
                     "Вимкнено зимовий режим",
@@ -193,7 +194,7 @@ void Application::_workerLoop() {
             
             _tg.sendAlert(alert);
             
-            std::cout << "[Worker] Alert sent successfully!" << std::endl << std::flush;
+            //std::cout << "[Worker] Alert sent successfully!" << std::endl << std::flush;
 
         } catch (const std::exception& e) {
             std::cerr << "[Worker] Failed to send alert: " << e.what() << std::endl << std::flush;
