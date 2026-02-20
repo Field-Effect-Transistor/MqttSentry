@@ -33,5 +33,5 @@ RUN cmake -S . -B build \
         -DCMAKE_EXE_LINKER_FLAGS="-static" \
         -DCMAKE_CXX_FLAGS="-static-libstdc++ -static-libgcc" \
         -DBUILD_SHARED_LIBS=OFF
-RUN cmake --build build -j$proc
+RUN cmake --build build -j$(proc)
 RUN strip build/tgBot
