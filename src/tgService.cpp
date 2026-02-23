@@ -19,7 +19,8 @@ inline std::vector<std::string> split(const std::string& s, char delimiter) {
 TgService::TgService(Settings::ConfigManager& cm):
     _cm(cm),
     _bot(cm.getTgConfig().token),
-    _admin(_cm, _bot)
+    _admin(_cm, _bot),
+    _isConnection(true)
 {
     _admin.setMachineStateProvider([this](const std::string& id, MachineState& ms) {
         _getMachineState(id, ms);
@@ -42,10 +43,24 @@ void TgService::runLongPoll() {
         try {
             printf("[TgService] Long poll started\n");
             longPoll.start();
+            _isConnection = true;
             std::this_thread::sleep_for(std::chrono::seconds(1));
+        } catch (boost::system::system_error& ec) {
+            if (
+                ec.code() == boost::asio::error::host_not_found ||
+                ec.code() == boost::asio::error::host_not_found_try_again ||
+                ec.code() == boost::asio::error::host_unreachable
+            ) {
+                std::cerr << "[TgService] DNS error: " << ec.what() << std::endl;
+                std::this_thread::sleep_for(std::chrono::seconds(10));
+                _isConnection = false;
+            } else {
+                std::cerr << "[TgService] System error: " << ec.what() << std::endl;
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+            }
         } catch (const std::exception& e) {
-            std::cerr << "[TgService] API/Network Error: " << e.what() << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(30));
+            std::cerr << "[TgService] API Error: " << e.what() << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(10));
         }
     }
     printf("[TgService] Long poll finished\n");
@@ -76,5 +91,16 @@ void TgService::sendAlert(const AlertEvents& alert) {
         }
     } catch (const std::exception& e) {
         std::cerr << "[TgService] Failed to send Alert: " << e.what() << std::endl;
+    }
+}
+
+void TgService::send(const std::string& message) {
+    try {
+        auto users_s = _cm.getTgConfig().users;
+        for(const auto& user : users_s) {
+            _bot.getApi().sendMessage(user, message, nullptr, nullptr, nullptr, "HTML");
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[TgService] Failed to send Message: " << e.what() << std::endl;
     }
 }

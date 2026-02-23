@@ -17,13 +17,24 @@ inline std::vector<std::string> split(const std::string& s, char delimiter) {
 MqttService::MqttService(
     Settings::ConfigManager& cm,
     boost::asio::io_context& ioc
-): _cm(cm), _ioc(ioc), _isConnected(false) {
+): _cm(cm), _ioc(ioc), _isConnected(true), _isWaitingForResponse(false){
     //  creating mqtt client
-    _client = std::make_shared<MqttClient>(MqttClient(ioc, {}, boost::mqtt5::logger(boost::mqtt5::log_level::debug)));  
+    _client = std::make_shared<MqttClient>(MqttClient(
+        ioc,
+        {},
+        MqttConnectionMonitor(
+            [this]() {
+                //_isConnected = true;
+            },
+            [this]() {
+                //_isConnected = false;
+            }
+        )
+    ));
 
     //  settin up client
     boost::mqtt5::connect_props cprop;
-    cprop[boost::mqtt5::prop::session_expiry_interval] = 300;
+    cprop[boost::mqtt5::prop::session_expiry_interval] = 100;
     _client->connect_properties(cprop);
 
     auto mqttConfig = _cm.getMqttConfig();
@@ -34,6 +45,8 @@ MqttService::MqttService(
     );
     
     _retryTimer = std::make_shared<boost::asio::steady_timer>(ioc);
+    _pingTimer = std::make_shared<boost::asio::steady_timer>(ioc);
+    _responseTimer = std::make_shared<boost::asio::steady_timer>(ioc);
 }
 
 void MqttService::start() {
@@ -43,12 +56,13 @@ void MqttService::start() {
         });
 
         this->_subscribeToTopics();
+        
+        _pingLoop();
+        _recieveLoop();
+        _ioc.run();
     } catch (const std::exception& e) {
         std::cerr << "[MqttService] start() Error: " << e.what() << std::endl << std::flush;
     }
-    //  start recieve loop
-    _recieveLoop();
-    _ioc.run();
 }
 
 void MqttService::_recieveLoop() {
@@ -59,26 +73,27 @@ void MqttService::_recieveLoop() {
         std::string payload, 
         boost::mqtt5::publish_props
     ) {
-        if (ec == boost::asio::error::operation_aborted) {
-            this->_isConnected = false;
-            return;
-        }
+        if (ec == boost::asio::error::operation_aborted) return;    //  Нічого не робимо, аборт викликаний користувачем
+
         if(ec) {
-            std::cerr << "[MqttService] Error: " << ec.message() << ". Retrying in 10s...\n";
+            std::cerr << "[MqttService] recieveLoop error: " << ec.message() << ". Retrying in 10s...\n";
 
             if (ec == boost::mqtt5::client::error::session_expired) {
+                //this->_isConnected = false;
                 std::cout << "[MqttService] Session expired. Re-subscribing..." << std::endl;
                 this->_subscribeToTopics();
             }
             
             _retryTimer->expires_after(std::chrono::seconds(10));
             _retryTimer->async_wait([this](const boost::system::error_code& timer_ec){
-                if (!timer_ec) this->_recieveLoop();
+                if (!timer_ec)
+                    this->_recieveLoop();
+                else {
+                    std::cerr << "[MqttService] _retryTimer: " << timer_ec.message() << std::endl << std::flush;
+                }
             });
             return;
         }
-
-        this->_isConnected = true;
         
         //  extracting id and theme (state, alarm_kod, out, etc.) from topic
         auto topics = split(full_topic, '/');
@@ -225,10 +240,79 @@ void MqttService::_subscribeToTopics() {
         [this](boost::mqtt5::error_code ec, std::vector<boost::mqtt5::reason_code>, boost::mqtt5::suback_props) {
             if (!ec) {
                 std::cout << "[MqttService] Successfully subscribed via MQTT!" << std::endl;
-                this->_isConnected = true;
             }
             else
                 std::cerr << "[MqttService] Subscribing error: " << ec.message() << std::endl;
+        }
+    );
+}
+
+void MqttService::_pingLoop() {
+    _pingTimer->expires_after(std::chrono::seconds(10));
+    _pingTimer->async_wait([this](const boost::system::error_code& ec){
+        //std::cout << "[MqttService] ping send\n" << std::flush;
+        if (ec == boost::asio::error::operation_aborted) {
+            return;
+        }
+        
+        if (ec) {
+            std::cerr << "[MqttService] _pingTimer exception: " << ec.message() << std::endl << std::flush;
+            _pingLoop();
+            return;
+        }
+    
+        this->_sendPing();
+        
+    });
+}
+
+void MqttService::_sendPing() {
+    if (_isWaitingForResponse) return;
+
+    _isWaitingForResponse = true;
+    _responseTimer->expires_after(std::chrono::seconds(5));
+    _responseTimer->async_wait([this](const boost::system::error_code& ec) {
+        if(_isWaitingForResponse) {
+            if(_isConnected) {
+                _isConnected = false;
+                std::cerr << "[MqttService] Connection TIMEOUT (No response in 5s). Status: OFFLINE" << std::endl << std::flush;
+                if (_onDisconnection) {
+                    _onDisconnection();
+                }
+            }
+
+            _isWaitingForResponse = false;
+            this->_pingLoop();
+        }
+    });
+
+    _client->async_publish<boost::mqtt5::qos_e::at_least_once>(
+        "ping",
+        "p",
+        boost::mqtt5::retain_e::no,
+        boost::mqtt5::publish_props {},
+        [this](boost::mqtt5::error_code ec, boost::mqtt5::reason_code rc, ...) {
+            _responseTimer->cancel();
+
+            //std::cout << "[MqttService] ping received\n" << std::flush;
+            bool currentStatus = false;
+            if (!ec && rc == boost::mqtt5::reason_codes::success) {
+                currentStatus = true;
+            }
+
+            if (currentStatus != _isConnected) {
+                if (currentStatus == true) {
+                    std::cout << "[MqttService] Connection status changed to: ONLINE\n" << std::flush;
+                    _onConnection();
+                } else {
+                    std::cout << "[MqttService] Connection status changed to: OFFLINE\n" << std::flush;
+                    _onDisconnection();
+                }
+                _isConnected = currentStatus;
+            }
+
+            _isWaitingForResponse = false;
+            this->_pingLoop();            
         }
     );
 }

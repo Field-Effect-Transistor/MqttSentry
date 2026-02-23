@@ -22,15 +22,7 @@ Application::Application(const std::string& configFilePath)
         }
     );
 
-}
-
-Application::~Application() {
-    stop();
-}
-
-void Application::run() {
-
-    //  STARTING TELEGRAM SERVICE
+    //  TgService INIT
     _tg.set_getMachineState([this](const std::string& id, MachineState& ms) {
         if (auto _ms = _msMap.get(id); _ms != std::nullopt)
             ms = *_ms;
@@ -45,12 +37,8 @@ void Application::run() {
             ml = {0, 0, "Немає даних"};
         }
     });
-    _workerThread = std::thread(&Application::_workerLoop, this);
-    _tgThread = std::thread([this](){
-        _tg.runLongPoll();
-    });
 
-    //  STARTING MQTT SERVICE
+    //MQTT SERVICE INIT
     _mqtt.setOnAlert([this](const AlertEvents alert){
         if (auto prev = _alertMap.get(alert.machine_id); prev == std::nullopt || prev->state != alert.state) {
             _alertQueue.push(alert);
@@ -151,7 +139,31 @@ void Application::run() {
             return;
         }
     });
+    _mqtt.setOnDisconnection([this]() {
+        if(_tg.isConnection()) {
+            _tg.send("🚫 Mqtt Брокер не на зв'язку");
+        }
+    });
+    _mqtt.setOnConnection([this]() {
+        if(_tg.isConnection()) {
+            _tg.send("📶  Mqtt Брокер вийшов на зв'язок");
+        }
+    });
+}
 
+Application::~Application() {
+    stop();
+}
+
+void Application::run() {
+    //  STARTING TELEGRAM SERVICE
+    _workerThread = std::thread(&Application::_workerLoop, this);
+    _tgThread = std::thread([this](){
+        _tg.runLongPoll();
+    });
+
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+    //  STARTING MQTT SERVICE
     _mqtt.start();
 
     std::cout << "[App] App running...\n" << std::flush;

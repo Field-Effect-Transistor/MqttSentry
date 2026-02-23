@@ -34,6 +34,11 @@ class TgService {
     void sendAlert(const AlertEvents& alert);
 
     /**
+     * @brief відправка повідомлень
+     */
+    void send(const std::string& message);
+
+    /**
      * @brief метод-зупинка обробника тг запитів, див. runLongPoll()
      */
     void stop() { _exit = true; };
@@ -48,10 +53,15 @@ class TgService {
      */
     void set_getMachineLight(const std::function<void(const std::string&, MachineLight&)>& func) { _getMachineLight = func; };
 
+    bool isConnection()const {
+        return _isConnection;
+    }
+
     private:
     Settings::ConfigManager& _cm;
     TgBot::Bot _bot;
     std::atomic<bool> _exit;
+    std::atomic<bool> _isConnection;
     AdminController _admin;
     
     std::function<void(const std::string&, MachineState&)> _getMachineState;
