@@ -10,7 +10,6 @@
 #include "config.hpp"
 #include "types.hpp"
 #include "topicWatchdog.hpp"
-#include "mqttConnectionMonitor.hpp"
 
 /**
  * @brief Керує Boost MQTT5 клієнтом, відстежує стан машин та їх серцебиття через watchdog
@@ -26,7 +25,7 @@ class MqttService {
 
     using ConnectionCallback = std::function<void(void)>;
 
-    using MqttClient = boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket, std::monostate, MqttConnectionMonitor>;
+    using MqttClient = boost::mqtt5::mqtt_client<boost::asio::ip::tcp::socket, std::monostate, boost::mqtt5::logger>;
     
     /**
      * @param cm    посилання на конфіг менедежер

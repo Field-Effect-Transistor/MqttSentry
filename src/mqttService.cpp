@@ -22,14 +22,7 @@ MqttService::MqttService(
     _client = std::make_shared<MqttClient>(MqttClient(
         ioc,
         {},
-        MqttConnectionMonitor(
-            [this]() {
-                //_isConnected = true;
-            },
-            [this]() {
-                //_isConnected = false;
-            }
-        )
+        boost::mqtt5::logger(boost::mqtt5::log_level::debug)
     ));
 
     //  settin up client
@@ -79,7 +72,6 @@ void MqttService::_recieveLoop() {
             std::cerr << "[MqttService] recieveLoop error: " << ec.message() << ". Retrying in 10s...\n";
 
             if (ec == boost::mqtt5::client::error::session_expired) {
-                //this->_isConnected = false;
                 std::cout << "[MqttService] Session expired. Re-subscribing..." << std::endl;
                 this->_subscribeToTopics();
             }

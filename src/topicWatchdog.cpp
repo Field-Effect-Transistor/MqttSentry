@@ -43,7 +43,6 @@ void TopicWatchdog::start_timer() {
 
 void TopicWatchdog::on_timeout() {
     auto isConnected = _cp();
-    //std::cout << "_cp(): " << (isConnected? "true" : "false") << std::endl << std::flush;
     if(!isConnected) {
         std::cout << "[TopicWatchdog:" << _hmi_id << "] on_timeout(): no brocker connection, starting timer... "<< std::endl;
         start_timer();
