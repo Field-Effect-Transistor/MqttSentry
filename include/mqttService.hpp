@@ -7,7 +7,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/mqtt5/logger.hpp>
 
-#include "config.hpp"
+#include "settings.hpp"
 #include "types.hpp"
 #include "topicWatchdog.hpp"
 
@@ -17,11 +17,14 @@
 class MqttService {
     public:
 
-    using OnAlert =         std::function<void(const AlertEvents)>;
-    using OnMS =            std::function<void(const std::string, const MachineState)>;
-    using OnLight =         std::function<void(const std::string, const MachineLight)>;
-    using OnMachineIn =     std::function<void(const std::string, const MachineIn)>;
-    using OnMachineOut =    std::function<void(const std::string, const MachineOut)>;
+    using OnAlert = std::function<void(const AlertEvents)>;
+    
+    using OnMS =                std::function<void(const std::string, const MachineState)>;
+    using OnMachineIn =         std::function<void(const std::string, const MachineIn)>;
+    using OnMachineInFilter =   std::function<void(const std::string, const MachineInFilter)>;
+    using OnMachineOut =        std::function<void(const std::string, const MachineOut)>;
+    using OnMachineAlarm =      std::function<void(const std::string, const MachineAlarmKod)>;
+    using OnMachineLight =      std::function<void(const std::string, const MachineLight)>;
 
     using ConnectionCallback = std::function<void(void)>;
 
@@ -44,10 +47,14 @@ class MqttService {
     void stop();
 
     void setOnAlert(OnAlert callback) { _onAlert = std::move(callback); }
+    
     void setOnMachineState(OnMS callback) { _onMS = std::move(callback); }
-    void setOnLight(OnLight callback) { _onLight = std::move(callback); }
     void setOnMachineIn(OnMachineIn callback) { _onMIn = std::move(callback); }
+    void setOnMachineInFilter(OnMachineInFilter callback) { _onMInf = std::move(callback); }
+    void setOnMachineLight(OnMachineLight callback) { _onMLight = std::move(callback); }
     void setOnMachineOut(OnMachineOut callback) { _onMOut = std::move(callback); }
+    void setOnMachineAlarm(OnMachineAlarm callback) { _onMAlarm = std::move(callback); }
+    
     void setOnConnection(ConnectionCallback callback) { _onConnection = std::move(callback);}
     void setOnDisconnection(ConnectionCallback callback) { _onDisconnection = std::move(callback);}
 
@@ -62,10 +69,13 @@ class MqttService {
 
     //  callbacks
     OnAlert         _onAlert;   ///< обробник для критичних тривог.
-    OnMS            _onMS;      ///< обробник для оновлення поточного стану машини (позиція/таймштамп).
-    OnLight         _onLight;   ///< обробник для оновлення даних лічильників (ECO/Light)
-    OnMachineIn     _onMIn;     ///< обробник для оновлення поточного входу на машину
-    OnMachineOut    _onMOut;    ///< обробник для оновлення поточного виходу машини
+
+    OnMS                _onMS;      ///< обробник для оновлення поточного стану машини (позиція/таймштамп).
+    OnMachineIn         _onMIn;     ///< обробник для оновлення поточного входу на машину
+    OnMachineInFilter   _onMInf;     ///< обробник для оновлення поточного входу на машину
+    OnMachineOut        _onMOut;    ///< обробник для оновлення поточного виходу машини
+    OnMachineLight      _onMLight;   ///< обробник для оновлення даних лічильників (ECO/Light)
+    OnMachineAlarm      _onMAlarm;
 
     ConnectionCallback _onConnection;       ///< обробник появи доступу до брокера
     ConnectionCallback _onDisconnection;    ///< обробник зникнення доступу до брокера

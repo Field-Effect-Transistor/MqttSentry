@@ -1,7 +1,7 @@
 //  include/adminController.hpp
 #pragma once
 
-#include "config.hpp"
+#include "settings.hpp"
 #include "types.hpp"
 
 #include <tgbot/tgbot.h>

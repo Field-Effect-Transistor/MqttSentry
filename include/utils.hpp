@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <cstdio>
+#include <ctime>
 
 //  splits a string into tokens using a separator character
 inline std::vector<std::string> split(const std::string& s, char delimiter) {
@@ -23,4 +25,24 @@ inline std::string formatTime(const unsigned long seconds) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%luг %luхв %luс", h, m, s);
     return std::string(buf);
+}
+
+inline uint64_t stringToUnix(const std::string& timestamp) {
+    struct tm t = {0};
+    int year, month, day, hour, min, sec;
+                                //"2026-02-26 14:04:42"
+    if (sscanf(timestamp.c_str(), "%d-%d-%d %d:%d:%d", 
+               &year, &month, &day, &hour, &min, &sec) == 6) 
+    {
+        t.tm_year = year - 1900; // Роки відраховуються від 1900s
+        t.tm_mon = month - 1;    // Місяці 0-11
+        t.tm_mday = day;
+        t.tm_hour = hour;
+        t.tm_min = min;
+        t.tm_sec = sec;
+        t.tm_isdst = -1;         // Автоматичне визначення літнього часу
+
+        return static_cast<uint64_t>(mktime(&t));
+    }
+    return 0;
 }

@@ -102,6 +102,13 @@ namespace Settings {
      */
     void from_json(const nlohmann::json& j, logic& l);
 
+    struct graphite {
+        std::string dns;
+        uint16_t    port;
+    };
+    void to_json(nlohmann::json& j, const graphite& g);
+    void from_json(const nlohmann::json& j, graphite& g);
+
     /**
      * @brief Керує конфігурацією застосунку, записує, читає конфігураційний файл, потокобезпечний
      */
@@ -111,6 +118,7 @@ namespace Settings {
         tg   _tg;
         mqtt _mqtt;
         logic _logic;
+        graphite _graphite;
         std::string _configFileName;
 
         mutable std::mutex _mutex;
@@ -132,10 +140,12 @@ namespace Settings {
         tg      getTgConfig()   const { std::lock_guard<std::mutex> lock(_mutex);   return _tg; };
         mqtt    getMqttConfig() const { std::lock_guard<std::mutex> lock(_mutex);   return _mqtt; };
         logic   getLogicConfig() const { std::lock_guard<std::mutex> lock(_mutex); return _logic; };
+        graphite getGraphiteConfig() const { std::lock_guard<std::mutex> lock(_mutex); return _graphite; };
 
         bool updateTgConfig(const tg& t);
         bool updateMqttConfig(const mqtt& m);
         bool updateLogicConfig(const logic& l);
+        bool updateGraphiteConfig(const graphite& g);
 
         /** 
          * @name Керування користувачами 
@@ -159,9 +169,11 @@ namespace Settings {
          * @{ 
          */
         
-        /// Повертає зрозумілу назву машини за її ID (наприклад, MAC-адресою).
+        /// Повертає зрозумілу назву машини за її ID
         /// Якщо назву не знайдено, повертає вхідний hmi_id.
         std::string resolveHmiName(const std::string& hmi_id);
+
+        std::string resolvePath(const std::string& hmi_id);
 
         /// Додає нову машину або оновлює існуючий псевдонім (псевдо).
         bool addMachine(const std::string& mid, const std::string& pseudo);

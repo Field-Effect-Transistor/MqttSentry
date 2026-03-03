@@ -3,6 +3,8 @@
 
 #include "mqttService.hpp"
 #include "tgService.hpp"
+#include "graphiteService.hpp"
+#include "mapper.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -50,6 +52,9 @@ private:
     MqttService _mqtt;                 ///< Сервіс взаємодії з MQTT брокером
     boost::asio::signal_set _signals;  ///< Обробник системних сигналів (SIGINT/SIGTERM)
     /// @}
+
+    GraphiteService _gs;
+    Mapper  _mapper;
 
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> _work_guard; ///< Тримає io_context живим, навіть якщо немає активних задач
     std::atomic<bool> _running; ///< Прапорець активності додатка

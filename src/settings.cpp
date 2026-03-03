@@ -1,5 +1,5 @@
 //  src/config.cpp
-#include "config.hpp"
+#include "settings.hpp"
 
 #include <fstream>
 
@@ -92,6 +92,18 @@ namespace Settings {
         }
     }
 
+    void to_json(nlohmann::json& j, const graphite& g) {
+        j = json({
+            {"dns", g.dns},
+            {"port", g.port}
+        });
+    }
+
+    void from_json(const nlohmann::json& j, graphite& g) {
+        g.dns = j["dns"];
+        g.port = j["port"];
+    }
+
     bool ConfigManager::_load() {
         if (_loaded) {
             return true;
@@ -119,6 +131,9 @@ namespace Settings {
             if (data.contains("logic")) {
                 _logic = data.at("logic").get<logic>();
             }
+            if (data.contains("graphite")) {
+                _graphite = data.at("graphite").get<graphite>();
+            }
 
         } catch (const json::parse_error& e) {
             std::cerr << "[ERROR] Error parsing config file: " << e.what() << std::endl;
@@ -140,6 +155,7 @@ namespace Settings {
         data["tg"] = _tg;
         data["mqtt"] = _mqtt;
         data["logic"] = _logic;
+        data["graphite"] = _graphite;
 
         configFile << data.dump(4);
         
@@ -217,12 +233,26 @@ namespace Settings {
         return _write();
     }
 
+    bool ConfigManager::updateGraphiteConfig(const graphite& g) {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _graphite = g;
+        return _write();
+    }
+
     std::string ConfigManager::resolveHmiName(const std::string& hmi_id) {
         if (auto search = _logic.machines.find(hmi_id); search != _logic.machines.end()) {
             return "<code>" + search->second + "</code>";
         }
 
         return "<code>" + hmi_id + "</code>";
+    }
+
+    std::string ConfigManager::resolvePath(const std::string& hmi_id) {
+        if (auto search = _logic.machines.find(hmi_id); search != _logic.machines.end()) {
+            return search->second;
+        }
+
+        return hmi_id;
     }
 
     bool ConfigManager::addMachine(const std::string& mid, const std::string& pseudo) {

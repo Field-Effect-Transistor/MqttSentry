@@ -5,16 +5,7 @@
 #include <thread>
 
 #include "adminController.hpp"
-
-inline std::vector<std::string> split(const std::string& s, char delimiter) {
-    std::vector<std::string> tokens;
-    std::string token;
-    std::istringstream tokenStream(s);
-    while (std::getline(tokenStream, token, delimiter)) {
-        tokens.push_back(token);
-    }
-    return tokens;
-}
+#include "utils.hpp"
 
 TgService::TgService(Settings::ConfigManager& cm):
     _cm(cm),

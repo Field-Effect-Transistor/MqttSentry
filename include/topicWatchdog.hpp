@@ -6,7 +6,7 @@
 #include <tgbot/tgbot.h>
 #include <functional>
 
-#include "config.hpp"
+#include "settings.hpp"
 
 /**
  * @brief Події, генеровані вотчдогом

@@ -6,6 +6,8 @@ Application::Application(const std::string& configFilePath)
     _tg(_cm),
     _mqtt(_cm, _ioc),
     _signals(_ioc),
+    _gs(_cm.getGraphiteConfig().dns, std::to_string(_cm.getGraphiteConfig().port), _ioc),
+    _mapper(_cm),
     _work_guard(boost::asio::make_work_guard(_ioc)),
     _running(true)
 {
@@ -45,6 +47,7 @@ Application::Application(const std::string& configFilePath)
         }
         _alertMap.set(alert.machine_id, alert);
     });
+
     _mqtt.setOnMachineState([this](const std::string& id, const MachineState ms) {
         auto prev = _msMap.get(id);
         if (prev.has_value()) {
@@ -70,13 +73,9 @@ Application::Application(const std::string& configFilePath)
             std::cerr << "[App] " << e.what() << std::endl << std::flush;
         }
         
-    });
-    _mqtt.setOnLight([this](const std::string id, const MachineLight l){
-        try {
-            _lightMap.set(id,l);
-        } catch(const std::exception& e) {
-            std::cerr << "[App] " << e.what() << std::endl << std::flush;
-        }
+        _mapper.map(id, ms, [this](Metric m) {
+            _gs.push(m);
+        });
     });
     _mqtt.setOnMachineIn([this](const std::string id, const MachineIn mIn) {
         History<MachineIn> in;
@@ -119,7 +118,14 @@ Application::Application(const std::string& configFilePath)
             _alertQueue.push(alert);
         }
 
-
+        _mapper.map(id, mIn, [this](Metric m) {
+            _gs.push(m);
+        });
+    });
+    _mqtt.setOnMachineInFilter([this](const std::string id, const MachineInFilter mIn) {
+        _mapper.map(id, mIn, [this](Metric m) {
+            _gs.push(m);
+        });
     });
     _mqtt.setOnMachineOut([this](const std::string id, const MachineOut mOut){
         History<MachineOut> out;
@@ -138,7 +144,27 @@ Application::Application(const std::string& configFilePath)
         } else {
             return;
         }
+
+        _mapper.map(id, mOut, [this](Metric m) {
+            _gs.push(m);
+        });
     });
+    _mqtt.setOnMachineLight([this](const std::string id, const MachineLight l){
+        try {
+            _lightMap.set(id,l);
+        } catch(const std::exception& e) {
+            std::cerr << "[App] " << e.what() << std::endl << std::flush;
+        }
+        _mapper.map(id, l, [this](Metric m) {
+            _gs.push(m);
+        });
+    });
+    _mqtt.setOnMachineAlarm([this](const std::string id, const MachineAlarmKod ma){
+        _mapper.map(id, ma, [this](Metric m) {
+            _gs.push(m);
+        });
+    });
+
     _mqtt.setOnDisconnection([this]() {
         if(_tg.isConnection()) {
             _tg.send("🚫 Mqtt Брокер не на зв'язку");

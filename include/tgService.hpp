@@ -3,7 +3,7 @@
 
 #include <tgbot/tgbot.h>
 
-#include "config.hpp"
+#include "settings.hpp"
 #include "types.hpp"
 #include "adminController.hpp"
 
@@ -61,8 +61,8 @@ class TgService {
     Settings::ConfigManager& _cm;
     TgBot::Bot _bot;
     std::atomic<bool> _exit;
-    std::atomic<bool> _isConnection;
     AdminController _admin;
+    std::atomic<bool> _isConnection;
     
     std::function<void(const std::string&, MachineState&)> _getMachineState;
     std::function<void(const std::string&, MachineLight&)> _getMachineLight;

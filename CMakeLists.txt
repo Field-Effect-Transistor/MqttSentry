@@ -4,11 +4,11 @@ project(tgBot)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-#set(Boost_USE_STATIC_LIBS ON)
-#set(OPENSSL_USE_STATIC_LIBS TRUE)
-#set(CURL_USE_STATIC_LIBS TRUE)
+set(Boost_USE_STATIC_LIBS ON)
+set(OPENSSL_USE_STATIC_LIBS TRUE)
+set(CURL_USE_STATIC_LIBS TRUE)
 
-#set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -27,7 +27,7 @@ else()
     message(STATUS "Boost::system not available, using header-only")
 endif()
 
-add_executable(tgBot src/main.cpp src/config.cpp src/topicWatchdog.cpp src/mqttService.cpp src/tgService.cpp src/application.cpp src/adminController.cpp)
+add_executable(tgBot src/main.cpp src/settings.cpp src/topicWatchdog.cpp src/mqttService.cpp src/tgService.cpp src/application.cpp src/adminController.cpp src/mapper.cpp src/graphiteService.cpp)
 
 target_compile_options(tgBot PRIVATE -Wall)
 target_compile_definitions(tgBot PRIVATE HAVE_CURL)
